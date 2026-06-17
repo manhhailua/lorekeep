@@ -62,8 +62,4 @@ See [serve.md](serve.md) to expose the graph to Claude Code / Cursor / Codex ove
 
 ## Data home
 
-Lorekeep reads/writes data from a home resolved as: explicit `LOREKEEP_*` env >
-`LOREKEEP_HOME` > dev mode (`.lorekeep/` or `raw/` in CWD) > XDG
-(`~/.config/lorekeep` config, `~/.local/share/lorekeep` data). `lorekeep init`
-bootstraps a fresh home. In a source checkout, dev mode is auto-detected so
-`uv run lorekeep compile` uses the repo's `raw/` + `graph/`.
+See [data-home.md](data-home.md) for the 4-tier path resolution (env > `LOREKEEP_HOME` > dev mode > XDG) and `lorekeep init`.

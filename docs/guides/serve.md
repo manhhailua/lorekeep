@@ -1,8 +1,6 @@
 # Serving the knowledge graph to coding agents
 
-Lorekeep resolves its data home with this precedence: explicit `LOREKEEP_*` env >
-`LOREKEEP_HOME` > dev mode (`.lorekeep/` or `raw/` in CWD) > XDG default
-(`~/.config/lorekeep` + `~/.local/share/lorekeep`).
+Path resolution (env > `LOREKEEP_HOME` > dev mode > XDG) is covered in [data-home.md](data-home.md).
 
 ## Installed use (recommended)
 
@@ -62,4 +60,3 @@ uvx lorekeep compile          # rebuilds facts.jsonl
 Connect the MCP server **once**; memory updates via `compile` are visible
 immediately. Reconnect is only needed for **code** changes (rare; the serve path
 is stable) or **scope** changes (`.mcp.json` `LOREKEEP_NS`).
-

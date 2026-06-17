@@ -159,22 +159,18 @@ in [`.lorekeep/config.yaml.example`](.lorekeep/config.yaml.example).
 
 Path resolution (high → low): explicit `LOREKEEP_*` env → `LOREKEEP_HOME` →
 **dev mode** (`.lorekeep/` or `raw/` in CWD; auto-detected in a source checkout)
-→ XDG (`~/.config/lorekeep`, `~/.local/share/lorekeep`). So:
+→ XDG (`~/.config/lorekeep`, `~/.local/share/lorekeep`).
 
-- **Installed**: `uvx lorekeep init` bootstraps the XDG home.
-- **Local dev**: from the repo, `uv run lorekeep compile` uses the repo's
-  `raw/` + `graph/` (zero migration).
-- **Custom KB**: `LOREKEEP_HOME=~/kb-work uvx lorekeep …`.
-
-See [`docs/compile.md`](docs/compile.md) and [`docs/serve.md`](docs/serve.md).
+Full details, per-path overrides, and `lorekeep init`: [`docs/guides/data-home.md`](docs/guides/data-home.md).
+For usage, see the [`docs/`](docs/README.md) index.
 
 ## Evaluation
 
 Tier-1 (CI): extraction P/R/F1 vs a gold corpus, entity-resolution pairwise F1,
 graph-structure metrics, determinism. Run: `uvx lorekeep eval`. The north star is
 *systematic thinking with complete information* — memory-recall benchmarks
-(LoCoMo, LongMemEval) are parity checks, not the optimization target. See the
-[design spec](docs/superpowers/specs/2026-06-14-lorekeep-temporal-kg-mcp-design.md) §16.
+(LoCoMo, LongMemEval) are parity checks, not the optimization target. See
+[`docs/architecture/evaluation.md`](docs/architecture/evaluation.md).
 
 ## Project layout
 
@@ -194,7 +190,7 @@ src/lorekeep/
   pipeline.py, cli.py
   eval/{gold,construction,retrieval}.py
 tests/                 ~106 tests
-docs/                  compile.md, serve.md, specs/, plans/
+docs/                  README.md index, architecture/, guides/
 ```
 
 ## Status
@@ -209,12 +205,15 @@ embeddings/hybrid search, `wiki.md` views, full Tier-2 benchmark datasets
 
 ## Documentation
 
-- [Compile quickstart](docs/compile.md)
-- [Serve to coding agents](docs/serve.md)
-- [Design spec (architecture, permission, temporal, eval)](docs/superpowers/specs/2026-06-14-lorekeep-temporal-kg-mcp-design.md)
-- Implementation plans: [A compile](docs/superpowers/plans/2026-06-14-lorekeep-plan-a-compile-pipeline.md),
-  [B serve](docs/superpowers/plans/2026-06-14-lorekeep-plan-b-serve-mcp.md),
-  [C data-home](docs/superpowers/plans/2026-06-15-lorekeep-plan-c-data-home-dev-mode.md)
+The [`docs/`](docs/README.md) index is the entry point.
+
+**Guides**
+- [Compiling the knowledge graph](docs/guides/compile.md)
+- [Serving the graph to coding agents](docs/guides/serve.md)
+- [Data home & path resolution](docs/guides/data-home.md)
+
+**Architecture**
+- [Overview](docs/architecture/overview.md) · [Data model](docs/architecture/data-model.md) · [Permission](docs/architecture/permission.md) · [Temporal](docs/architecture/temporal.md) · [Compile pipeline](docs/architecture/pipeline.md) · [Serve & MCP](docs/architecture/serve-mcp.md) · [Testing & evaluation](docs/architecture/evaluation.md)
 
 ## License
 
