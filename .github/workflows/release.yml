@@ -1,13 +1,31 @@
 name: release
 
-# Publish to PyPI via OIDC trusted publishing (no API token).
-# Triggers on a published GitHub Release. Requires a "pending trusted publisher"
-# configured on PyPI (project = lorekeep, repo = manhhailua/lorekeep,
-# workflow = release.yml, environment = blank) before the first release.
+# Publish to PyPI via OIDC trusted publishing (no API token). Requires a
+# "pending trusted publisher" configured on PyPI (project = lorekeep,
+# repo = manhhailua/lorekeep, workflow = release.yml, environment = pypi).
+#
+# Triggered two ways:
+#   1. workflow_call from release-please.yml — the reliable auto-publish path.
+#      release-please creates releases with GITHUB_TOKEN, whose events do NOT
+#      spawn other workflows, so a `release: published` trigger never fires for
+#      them. Calling this workflow directly from the release-please run (a job
+#      call, not an event) sidesteps that anti-loop rule.
+#   2. release: published + workflow_dispatch — manual / fallback paths.
 on:
   release:
     types: [published]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref (tag/branch/SHA) to build and publish
+        required: false
+        default: ""
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -19,6 +37,8 @@ jobs:
     environment: pypi
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.event.release.tag_name || github.ref }}
 
       - name: Set up uv
         uses: astral-sh/setup-uv@v5

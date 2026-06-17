@@ -3,8 +3,10 @@ name: release-please
 # On every push to main, release-please analyzes conventional commits since the
 # last release. If a version bump is warranted (feat = minor, fix = patch,
 # ! = major), it creates or updates a "Release PR". When that PR merges, it
-# creates the git tag + GitHub Release. The release.yml workflow then publishes
-# to PyPI via OIDC trusted publisher.
+# creates the git tag + GitHub Release AND, in the same run, calls release.yml
+# to publish to PyPI. (release-please creates releases with GITHUB_TOKEN, whose
+# `release: published` event does not spawn workflows — so we call release.yml
+# directly instead of relying on that trigger.)
 on:
   push:
     branches: [main]
@@ -16,7 +18,18 @@ permissions:
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      tag_name: ${{ steps.rp.outputs.tag_name }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - id: rp
+        uses: googleapis/release-please-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      ref: ${{ needs.release-please.outputs.tag_name }}
