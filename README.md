@@ -208,6 +208,7 @@ embeddings/hybrid search, `wiki.md` views, full Tier-2 benchmark datasets
 The [`docs/`](docs/README.md) index is the entry point.
 
 **Guides**
+- [Importing agent sessions](docs/guides/import.md)
 - [Compiling the knowledge graph](docs/guides/compile.md)
 - [Serving the graph to coding agents](docs/guides/serve.md)
 - [Data home & path resolution](docs/guides/data-home.md)

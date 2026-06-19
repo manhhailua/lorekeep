@@ -21,6 +21,7 @@ Concepts and design — how the system fits together.
 
 How to use it.
 
+- [Importing agent sessions](guides/import.md) — Claude Code + Cursor → `raw/`.
 - [Compiling the knowledge graph](guides/compile.md) — `raw/*.md` → `facts.jsonl`.
 - [Serving the graph to coding agents](guides/serve.md) — wire Claude Code / Cursor / Codex over MCP.
 - [Data home & path resolution](guides/data-home.md) — env / `LOREKEEP_HOME` / dev mode / XDG.

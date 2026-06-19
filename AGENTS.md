@@ -30,7 +30,7 @@ uv run lorekeep <command>                    # run the CLI in dev mode
 | `eval` | Tier-1 construction P/R/F1 vs gold corpus + structure metrics |
 | `serve [--transport stdio\|http]` | Run the read-only MCP server |
 | `mcp add --agent claude\|cursor\|codex --ns NS` | Write agent MCP config (`.mcp.json`) |
-| `import --from claude [--quick]` | Import Claude Code session memory + transcript into `raw/` |
+| `import --from claude\|cursor` | Import agent sessions into `raw/` (claude: quick+deep; cursor: deep-only) |
 | `doctor` | Verify install: graph loads, schema valid, a tool responds |
 | `version` | Print version |
 

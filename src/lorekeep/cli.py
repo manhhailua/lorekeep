@@ -233,7 +233,7 @@ def init() -> None:
 def import_cmd(
     from_source: str = typer.Option(
         "claude", "--from",
-        help="Source to import from (claude; extensible to cursor, codex)",
+        help="Source to import from (claude | cursor)",
     ),
     quick: bool = typer.Option(
         False, "--quick",
@@ -247,28 +247,73 @@ def import_cmd(
         "claude-memory", "--memory-ns",
         help="Namespace for imported memory files",
     ),
-    session_ns: str = typer.Option(
-        "claude-session", "--session-ns",
-        help="Namespace for imported session transcript files",
+    session_ns: str | None = typer.Option(
+        None, "--session-ns",
+        help="Namespace for imported session files (default: claude-session | cursor-session)",
     ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Show what would be imported without writing files",
     ),
 ) -> None:
-    """Import knowledge from Claude Code sessions into raw/.
+    """Import knowledge from an agent's sessions into raw/.
 
-    Two modes:
-      --quick   Copy memory/*.md files only (fast, zero LLM cost).
-      (default) Memory + transcript analysis via LLM (deeper, uses provider).
+    Sources:
+      claude   Claude Code sessions. --quick copies memory/*.md only (no LLM);
+               default (deep) adds LLM-summarized transcript analysis.
+      cursor   Cursor composer conversations (GLOBAL state.vscdb). Deep-only --
+               --quick is rejected (Cursor has no curated memory files).
     """
-    if from_source != "claude":
-        typer.echo(f"unknown source: {from_source} (only 'claude' is supported)")
+    if from_source not in ("claude", "cursor"):
+        typer.echo(f"unknown source: {from_source} (claude | cursor)")
         raise typer.Exit(code=1)
 
     p = resolve_paths()
     config = load_config(p["config"])
 
-    # Resolve session dir
+    def _build_import_provider():
+        """Deep-mode provider (fake under LOREKEEP_PROVIDER=fake, else config)."""
+        if os.environ.get("LOREKEEP_PROVIDER") == "fake":
+            from lorekeep.compile.providers import FakeProvider
+            # Provide enough canned responses for deep mode batches
+            canned = "# Knowledge Summary\n\n## Decisions\n- No real session data imported (fake provider).\n"
+            return FakeProvider(responses=[canned] * 50)
+        return _build_provider(config)
+
+    # --- Cursor: global composer conversations, deep-only ------------------
+    if from_source == "cursor":
+        if quick:
+            typer.echo("error: cursor import is deep-only (--quick not supported)")
+            raise typer.Exit(code=1)
+
+        from lorekeep.importer.cursor import find_cursor_state_db, import_cursor
+
+        if session_path:
+            sp = Path(session_path).expanduser()
+            db = sp if sp.is_file() else sp / "state.vscdb"
+            if not db.is_file():
+                typer.echo(f"error: no Cursor state.vscdb at {session_path}")
+                raise typer.Exit(code=1)
+        else:
+            db = find_cursor_state_db()
+            if db is None:
+                typer.echo("error: Cursor state.vscdb not found; set CURSOR_STATE_DB "
+                           "or pass --session-path")
+                raise typer.Exit(code=1)
+
+        ns = session_ns or "cursor-session"
+        result = import_cursor(
+            raw_root=p["raw"], db_path=db, namespace=ns,
+            provider=_build_import_provider(), dry_run=dry_run,
+        )
+        ses_count = len(result.get("session", []))
+        if dry_run:
+            typer.echo(f"dry-run: would import {ses_count} cursor session files")
+        else:
+            typer.echo(f"imported: {ses_count} session files -> raw/{ns}/")
+            typer.echo("next: lorekeep compile")
+        return
+
+    # --- Claude: per-project session dir, quick + deep ---------------------
     if session_path:
         session_dir = Path(session_path).expanduser()
         if not session_dir.exists():
@@ -282,16 +327,7 @@ def import_cmd(
                        "Run Claude Code in this project first.")
             raise typer.Exit(code=1)
 
-    # Build provider
-    provider = None
-    if not quick:
-        if os.environ.get("LOREKEEP_PROVIDER") == "fake":
-            from lorekeep.compile.providers import FakeProvider
-            # Provide enough canned responses for deep mode batches
-            canned = "# Knowledge Summary\n\n## Decisions\n- No real session data imported (fake provider).\n"
-            provider = FakeProvider(responses=[canned] * 50)
-        else:
-            provider = _build_provider(config)
+    provider = None if quick else _build_import_provider()
 
     from lorekeep.importer.claude import import_claude
     result = import_claude(
@@ -299,7 +335,7 @@ def import_cmd(
         session_dir=session_dir,
         quick=quick,
         memory_ns=memory_ns,
-        session_ns=session_ns,
+        session_ns=session_ns or "claude-session",
         provider=provider,
         dry_run=dry_run,
     )

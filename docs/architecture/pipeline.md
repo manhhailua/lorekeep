@@ -4,6 +4,8 @@
 
 The compile chain turns `raw/<ns>/*.md` into a deterministic `facts.jsonl` + `manifest.json`. It runs offline, curator-side, via the CLI — never through MCP. Orchestrated by `src/lorekeep/pipeline.py`.
 
+`raw/` is populated by hand or by `lorekeep import`, which converts a coding agent's sessions (Claude Code, Cursor) into markdown; see the [import guide](../guides/import.md). Import and compile are independent curator steps.
+
 ## Steps
 
 ```
