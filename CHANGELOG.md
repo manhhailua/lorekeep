@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.5](https://github.com/manhhailua/lorekeep/compare/v0.1.4...v0.1.5) (2026-06-21)
+
+
+### Bug Fixes
+
+* inline PyPI publish in release-please, OIDC zero-trust, no PAT ([79afa7d](https://github.com/manhhailua/lorekeep/commit/79afa7d091ac6aefb21440255bd3bcc670976bf7))
+* inline PyPI publish in release-please, OIDC zero-trust, no PAT ([9a48213](https://github.com/manhhailua/lorekeep/commit/9a48213482f2f0d79f6542c3a09c61389957904a))
+* inline PyPI publish in release-please, OIDC zero-trust, no PAT ([#20](https://github.com/manhhailua/lorekeep/issues/20)) ([79afa7d](https://github.com/manhhailua/lorekeep/commit/79afa7d091ac6aefb21440255bd3bcc670976bf7))
+
 ## [0.1.4](https://github.com/manhhailua/lorekeep/compare/v0.1.3...v0.1.4) (2026-06-21)
 
 
