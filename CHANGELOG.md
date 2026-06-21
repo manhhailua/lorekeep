@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.7](https://github.com/manhhailua/lorekeep/compare/v0.1.6...v0.1.7) (2026-06-21)
+
+
+### Bug Fixes
+
+* use workflow_dispatch to trigger release.yml, avoid OIDC name mismatch ([c857706](https://github.com/manhhailua/lorekeep/commit/c857706718fbcf817bdec7488edc7fa06cfde6b7))
+* use workflow_dispatch to trigger release.yml, avoid OIDC name mismatch ([#24](https://github.com/manhhailua/lorekeep/issues/24)) ([c857706](https://github.com/manhhailua/lorekeep/commit/c857706718fbcf817bdec7488edc7fa06cfde6b7))
+
 ## [0.1.6](https://github.com/manhhailua/lorekeep/compare/v0.1.5...v0.1.6) (2026-06-21)
 
 
