@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.1.4](https://github.com/manhhailua/lorekeep/compare/v0.1.3...v0.1.4) (2026-06-21)
+
+
+### Features
+
+* import --from cursor (deep-only) ([#14](https://github.com/manhhailua/lorekeep/issues/14)) ([292fad2](https://github.com/manhhailua/lorekeep/commit/292fad23b4daa8991df89b7300771342c68ee951)), closes [#4](https://github.com/manhhailua/lorekeep/issues/4)
+* living knowledge architecture — append-and-resolve, agent journals, autonomous agent ([d173a46](https://github.com/manhhailua/lorekeep/commit/d173a46868cdbcc958ae8a777f7ad90340c6f6bf))
+* living knowledge architecture — append-and-resolve, agent journals, autonomous agent ([#17](https://github.com/manhhailua/lorekeep/issues/17)) ([d173a46](https://github.com/manhhailua/lorekeep/commit/d173a46868cdbcc958ae8a777f7ad90340c6f6bf))
+
+
+### Bug Fixes
+
+* revert release-please to simple model, use PAT fallback for PyPI auto-publish ([d5dd6c7](https://github.com/manhhailua/lorekeep/commit/d5dd6c7f8952cb46591afff4b13db39022eb4914))
+* revert release-please to simple model, use PAT fallback for PyPI auto-publish ([0e20d7a](https://github.com/manhhailua/lorekeep/commit/0e20d7a3b7af3a089a2fe2bbd08b7418d0a89357))
+* revert release-please to simple model, use PAT fallback for PyPI auto-publish ([#18](https://github.com/manhhailua/lorekeep/issues/18)) ([d5dd6c7](https://github.com/manhhailua/lorekeep/commit/d5dd6c7f8952cb46591afff4b13db39022eb4914))
+
+
+### Documentation
+
+* fix confidence overlap, ns param, journal partitions, edge retry ([0ed8f0e](https://github.com/manhhailua/lorekeep/commit/0ed8f0e6e34e4f182e8d50863d1c5c7ccd3b32fa))
+* fix numbering, ns param drift, planned tags, confidence threshold clarity ([7bec282](https://github.com/manhhailua/lorekeep/commit/7bec282611c75494e6b75e3db8cfaa1eb9bebd59))
+* harden journal write path security model ([874ee36](https://github.com/manhhailua/lorekeep/commit/874ee364525a701d8760284fe06a02b7a4a1461f))
+* mark planned features as [planned] to match v1 implementation state ([6f7644f](https://github.com/manhhailua/lorekeep/commit/6f7644f75a19a0bc2fd2b4052123aff7d3a4001c))
+* replace compile-only with append-and-resolve architecture, add journal and autonomous agent ([465e765](https://github.com/manhhailua/lorekeep/commit/465e765ebc078dfb6303298c0ace0ca84105e4da))
+
 ## [0.1.3](https://github.com/manhhailua/lorekeep/compare/v0.1.2...v0.1.3) (2026-06-17)
 
 
