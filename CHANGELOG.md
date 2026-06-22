@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/manhhailua/lorekeep/compare/v0.1.9...v0.1.10) (2026-06-22)
+
+
+### Documentation
+
+* mandate PR-only git workflow, never push to main ([#30](https://github.com/manhhailua/lorekeep/issues/30)) ([b080360](https://github.com/manhhailua/lorekeep/commit/b0803603ff355ba70816255503eb74b5eff6622b))
+
 ## [0.1.9](https://github.com/manhhailua/lorekeep/compare/v0.1.8...v0.1.9) (2026-06-22)
 
 
