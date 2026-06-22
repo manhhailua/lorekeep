@@ -70,6 +70,7 @@ Pure (no I/O), 4-tier precedence high→low: explicit `LOREKEEP_RAW/OUT/CACHE/SC
 
 ## Conventions
 
+- **Git workflow: always use pull requests.** Never push directly to `main`. Every change goes through a feature branch → PR → review → squash merge. Branch naming: `type/short-desc` (e.g. `feat/agent-ingest`, `fix/watch-try-except`). All PRs must pass CI before merge.
 - **Conventional Commits are enforced** — a `commit-msg` pre-commit hook (`scripts/check-conventional-commit.py`) plus CI (`lint-commits.yml`, checking both commit messages and PR title). Types: `build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test`. Merge commits are exempt.
 - **Releases are automated** — `release-please` runs on every push to `main` (`feat`=minor, `fix`=patch, `!`=major), opens an auto-merging Release PR, tags a GitHub Release on merge, and `release.yml` publishes to PyPI via OIDC trusted publishing. Do not version-bump by hand.
 - **Determinism is a hard requirement** — recompiling unchanged input must be byte-identical (kept green by `test_determinism.py`). Preserve the sorted-output / cache behavior in `writer.py` and `extract.py` when changing the pipeline.
