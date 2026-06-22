@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.8](https://github.com/manhhailua/lorekeep/compare/v0.1.7...v0.1.8) (2026-06-22)
+
+
+### Features
+
+* implement autonomous agent, journal, and MCP write tools ([188ebd5](https://github.com/manhhailua/lorekeep/commit/188ebd5787d962d41e43c421e6e83dbaeaf8a66b))
+* implement autonomous agent, journal, and MCP write tools ([f669b3b](https://github.com/manhhailua/lorekeep/commit/f669b3b07ed2a53d5299da325d895c037a2788b5))
+* implement autonomous agent, journal, and MCP write tools ([#26](https://github.com/manhhailua/lorekeep/issues/26)) ([188ebd5](https://github.com/manhhailua/lorekeep/commit/188ebd5787d962d41e43c421e6e83dbaeaf8a66b))
+
+
+### Bug Fixes
+
+* auto-resolve in agent watch, edge ID generation, update_fact for edges ([db40785](https://github.com/manhhailua/lorekeep/commit/db407850dc2431b47cb31e5461a8354473d47d91))
+
 ## [0.1.7](https://github.com/manhhailua/lorekeep/compare/v0.1.6...v0.1.7) (2026-06-21)
 
 
