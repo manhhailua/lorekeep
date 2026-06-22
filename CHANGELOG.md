@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/manhhailua/lorekeep/compare/v0.1.8...v0.1.9) (2026-06-22)
+
+
+### Features
+
+* implement lorekeep agent ingest with human-in-the-loop review ([5cf77fe](https://github.com/manhhailua/lorekeep/commit/5cf77fe7829ff2fccbf9f95bddba135c67c0f29a)), closes [#15](https://github.com/manhhailua/lorekeep/issues/15)
+
 ## [0.1.8](https://github.com/manhhailua/lorekeep/compare/v0.1.7...v0.1.8) (2026-06-22)
 
 
