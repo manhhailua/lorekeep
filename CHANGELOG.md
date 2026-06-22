@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/manhhailua/lorekeep/compare/v0.1.10...v0.1.11) (2026-06-22)
+
+
+### Features
+
+* add agent watch sessions for continuous live ingest ([#32](https://github.com/manhhailua/lorekeep/issues/32)) ([4a48dbd](https://github.com/manhhailua/lorekeep/commit/4a48dbd35d46199255268eff329808bccda5dcbe)), closes [#9](https://github.com/manhhailua/lorekeep/issues/9)
+
 ## [0.1.10](https://github.com/manhhailua/lorekeep/compare/v0.1.9...v0.1.10) (2026-06-22)
 
 
