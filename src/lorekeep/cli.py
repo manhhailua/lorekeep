@@ -740,8 +740,17 @@ def watch(
         60, "--interval",
         help="Polling interval in seconds",
     ),
+    watch_sessions: bool = typer.Option(
+        True, "--watch-sessions/--no-watch-sessions",
+        help="Watch agent session dirs for live continuous ingest",
+    ),
 ) -> None:
-    """Run the autonomous agent daemon: watch raw/ and pending/ for changes."""
+    """Run the autonomous agent daemon: watch raw/, pending/, and agent sessions.
+
+    Watches raw/ for new/changed markdown sources → auto-compile.
+    Watches pending/ for new journal entries → auto-resolve.
+    Watches agent session dirs (Claude memory/) → delta quick import → raw/.
+    """
     import time
     p = resolve_paths()
     raw_dir = p["raw"]
@@ -749,17 +758,35 @@ def watch(
 
     typer.echo(f"agent watch: monitoring raw={raw_dir}, pending={pending_dir}, interval={interval}s")
     typer.echo("agent: auto-compile (raw/) and auto-resolve (pending/) enabled")
+
+    # Attempt session discovery once at startup
+    session_dir = None
+    session_memory_dir = None
+    if watch_sessions:
+        try:
+            from lorekeep.importer.claude import find_current_session
+            sd = find_current_session()
+            if sd is not None and (sd / "memory").is_dir():
+                session_dir = sd
+                session_memory_dir = sd / "memory"
+                typer.echo(f"agent: watching session memory={session_memory_dir}")
+        except Exception:
+            pass
+
     typer.echo("agent: MCP server lazy-reloads facts.jsonl — no reconnect needed")
     last_raw_mtime = 0.0
     last_pending_mtime = 0.0
+    last_session_mtime = 0.0
+    last_session_import = 0.0          # debounce timer (seconds since epoch)
     has_raw = raw_dir.exists()
     has_pending = pending_dir and pending_dir.exists()
 
     while True:
         try:
-            # Check raw/ for changes → auto-compile
+            # --- raw/ watch → auto-compile ----------------------------------
             raw_files = sorted(raw_dir.rglob("*.md")) if has_raw else []
             raw_mtime = max((f.stat().st_mtime for f in raw_files), default=0.0)
+            compiled = False
             if raw_mtime > last_raw_mtime and last_raw_mtime > 0:
                 typer.echo(f"agent: raw/ changed ({len(raw_files)} files) — compiling...")
                 try:
@@ -772,67 +799,45 @@ def watch(
                     cache = p.get("cache", p["out"].parent / ".lorekeep" / "cache.json")
                     compile_graph(raw_dir, p["out"], schema, provider, Path(cache))
                     typer.echo("agent: compile done")
+                    compiled = True
                 except Exception as exc:
                     typer.echo(f"agent: compile error: {exc}")
             last_raw_mtime = raw_mtime
 
-            # Check pending/ for new journals → auto-resolve
+            # --- After compile, re-merge pending journals -------------------
+            # compile is a destructive overwrite that regenerates facts.jsonl
+            # from raw/ only.  Re-merge pending journal entries so facts
+            # approved via agent ingest / MCP write tools are not lost.
+            if compiled and has_pending:
+                _do_auto_resolve(p["out"], pending_dir)
+
+            # --- pending/ watch → auto-resolve ------------------------------
             if has_pending:
                 journal_files = sorted(pending_dir.rglob("journal.jsonl"))
                 pending_mtime = max((f.stat().st_mtime for f in journal_files), default=0.0)
                 if pending_mtime > last_pending_mtime and last_pending_mtime > 0:
                     typer.echo("agent: pending/ changed — resolving...")
-                    try:
-                        from lorekeep.store.graph import GraphStore
-                        from lorekeep.facts_io import read_facts
-                        from lorekeep.compile.resolve import resolve as resolve_facts, merge_journals
-                        from lorekeep.compile.writer import write_graph
-                        from lorekeep.journal import load_journals, update_journal_status
-                        from lorekeep.models import Edge, Manifest, Node
-
-                        facts_path = p["out"] / "facts.jsonl"
-                        existing_nodes = []
-                        existing_edges = []
-                        if facts_path.exists():
-                            for f in read_facts(facts_path):
-                                if isinstance(f, Node):
-                                    existing_nodes.append(f)
-                                else:
-                                    existing_edges.append(f)
-
-                        journals = load_journals(pending_dir)
-                        pending_entries = [j for j in journals if j.status == "pending"]
-                        if pending_entries:
-                            merged = merge_journals(existing_nodes, existing_edges, pending_entries)
-                            resolved = resolve_facts(merged.nodes, merged.edges)
-                            manifest = Manifest(
-                                schema_version=0, chunk_count=0,
-                                node_count=len(resolved.nodes),
-                                edge_count=len(resolved.edges),
-                                run_id="auto-resolve", facts_hash="",
-                                merged_count=merged.merge_count,
-                                quarantined_count=merged.quarantine_count,
-                                flagged_count=merged.flagged_count,
-                            )
-                            write_graph(p["out"], resolved.nodes, resolved.edges, manifest)
-
-                            # Update journal status
-                            for ns in set(entry.ns for entry, _ in merged.merged):
-                                timestamps = {e.proposed_at for e, _ in merged.merged if e.ns == ns}
-                                if timestamps:
-                                    update_journal_status(pending_dir, ns, timestamps, "merged")
-                            for ns in set(entry.ns for entry, _ in merged.flagged):
-                                timestamps = {e.proposed_at for e, _ in merged.flagged if e.ns == ns}
-                                existing = {e.proposed_at for e, _ in merged.merged if e.ns == ns}
-                                to_flag = timestamps - existing
-                                if to_flag:
-                                    update_journal_status(pending_dir, ns, to_flag, "flagged")
-
-                            typer.echo(f"agent: resolve done — {merged.merge_count} merged, "
-                                       f"{merged.flagged_count} flagged, {merged.quarantine_count} quarantined")
-                    except Exception as exc:
-                        typer.echo(f"agent: resolve error: {exc}")
+                    _do_auto_resolve(p["out"], pending_dir)
                 last_pending_mtime = pending_mtime
+
+            # --- session watch → delta quick import → raw/ ------------------
+            if session_memory_dir and session_memory_dir.is_dir():
+                mem_files = sorted(session_memory_dir.glob("*.md"))
+                session_mtime = max((f.stat().st_mtime for f in mem_files), default=0.0)
+                now = time.monotonic()
+                # Debounce: max once per 30 seconds
+                if (session_mtime > last_session_mtime and last_session_mtime > 0
+                        and now - last_session_import >= 30):
+                    typer.echo(f"agent: session memory changed ({len(mem_files)} files) — importing...")
+                    try:
+                        from lorekeep.importer.claude import import_memories
+                        written = import_memories(session_dir, raw_dir, "claude-memory")
+                        if written:
+                            typer.echo(f"agent: session import done — {len(written)} files -> raw/claude-memory/")
+                            last_session_import = now
+                    except Exception as exc:
+                        typer.echo(f"agent: session import error: {exc}")
+                last_session_mtime = session_mtime
 
             time.sleep(interval)
         except KeyboardInterrupt:
@@ -841,6 +846,62 @@ def watch(
         except Exception as exc:
             typer.echo(f"agent: error: {exc}")
             time.sleep(interval)
+
+
+def _do_auto_resolve(out_dir: Path, pending_dir: Path) -> None:
+    """Merge pending journal entries into facts.jsonl.
+
+    Extracted as a helper so both the pending/ watch loop and the
+    post-compile re-merge path share the same logic.
+    """
+    try:
+        from lorekeep.facts_io import read_facts
+        from lorekeep.compile.resolve import resolve as resolve_facts, merge_journals
+        from lorekeep.compile.writer import write_graph
+        from lorekeep.journal import load_journals, update_journal_status
+        from lorekeep.models import Edge, Manifest, Node
+
+        facts_path = out_dir / "facts.jsonl"
+        existing_nodes = []
+        existing_edges = []
+        if facts_path.exists():
+            for f in read_facts(facts_path):
+                if isinstance(f, Node):
+                    existing_nodes.append(f)
+                else:
+                    existing_edges.append(f)
+
+        journals = load_journals(pending_dir)
+        pending_entries = [j for j in journals if j.status == "pending"]
+        if pending_entries:
+            merged = merge_journals(existing_nodes, existing_edges, pending_entries)
+            resolved = resolve_facts(merged.nodes, merged.edges)
+            manifest = Manifest(
+                schema_version=0, chunk_count=0,
+                node_count=len(resolved.nodes),
+                edge_count=len(resolved.edges),
+                run_id="auto-resolve", facts_hash="",
+                merged_count=merged.merge_count,
+                quarantined_count=merged.quarantine_count,
+                flagged_count=merged.flagged_count,
+            )
+            write_graph(out_dir, resolved.nodes, resolved.edges, manifest)
+
+            for ns in set(entry.ns for entry, _ in merged.merged):
+                timestamps = {e.proposed_at for e, _ in merged.merged if e.ns == ns}
+                if timestamps:
+                    update_journal_status(pending_dir, ns, timestamps, "merged")
+            for ns in set(entry.ns for entry, _ in merged.flagged):
+                timestamps = {e.proposed_at for e, _ in merged.flagged if e.ns == ns}
+                existing = {e.proposed_at for e, _ in merged.merged if e.ns == ns}
+                to_flag = timestamps - existing
+                if to_flag:
+                    update_journal_status(pending_dir, ns, to_flag, "flagged")
+
+            typer.echo(f"agent: resolve done — {merged.merge_count} merged, "
+                       f"{merged.flagged_count} flagged, {merged.quarantine_count} quarantined")
+    except Exception as exc:
+        typer.echo(f"agent: resolve error: {exc}")
 
 
 if __name__ == "__main__":
