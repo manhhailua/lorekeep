@@ -35,9 +35,11 @@ config  = home / "config.yaml"
 cache   = home / "cache.json"
 raw     = home / "raw"
 out     = home / "graph"
-schema  = home / "graph" / "schema.json"
+schema  = home / "schema.json"
 pending = home / "pending"
 ```
+
+(Matches the existing `LOREKEEP_HOME` branch exactly — `schema` sits at the home root, not under `graph/`.)
 
 `LOREKEEP_HOME` and XDG branches already follow this shape (also expose their `home`). `_dev_marker` unchanged (`.lorekeep/` presence still triggers dev).
 
@@ -58,7 +60,7 @@ graph/manifest.json
 cache.json
 ```
 
-Tracked: `raw/` (all namespaces, including personal), `graph/schema.json`, the backup `.gitignore` itself.
+Tracked: `raw/` (all namespaces, including personal), `schema.json`, the backup `.gitignore` itself.
 
 ### 4. New CLI: `lorekeep backup`
 
@@ -94,7 +96,7 @@ Operates on `home` from `resolve_paths()`, so works identically in dev / `LOREKE
 | `src/lorekeep/paths.py` | dev block → `.lorekeep/`; add `home` to result |
 | `src/lorekeep/cli.py` | new `backup` command (+ `--init`) |
 | `.gitignore` | drop root `graph/` rules |
-| `graph/schema.json` | `git rm --cached` |
+| `graph/schema.json` | `git rm --cached` (root graph/ retired) |
 | `CLAUDE.md` | path section + backup command doc |
 | `raw/`, `graph/` (root) | migrate → `.lorekeep/`, remove |
 
