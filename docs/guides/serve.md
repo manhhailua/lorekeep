@@ -29,7 +29,7 @@ uvx lorekeep doctor
 From the Lorekeep source checkout (has `.lorekeep/` → auto dev mode):
 
 ```bash
-uv run lorekeep compile      # reads repo raw/, writes repo graph/
+uv run lorekeep compile      # reads .lorekeep/raw/, writes .lorekeep/graph/
 uv run lorekeep serve
 ```
 

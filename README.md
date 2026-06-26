@@ -182,8 +182,11 @@ in [`.lorekeep/config.yaml.example`](.lorekeep/config.yaml.example).
 ## Data home & dev mode
 
 Path resolution (high → low): explicit `LOREKEEP_*` env → `LOREKEEP_HOME` →
-**dev mode** (`.lorekeep/` or `raw/` in CWD; auto-detected in a source checkout)
+**dev mode** (`.lorekeep/` in CWD; auto-detected in a source checkout)
 → XDG (`~/.config/lorekeep`, `~/.local/share/lorekeep`).
+
+Back up the data home to a private git repo with `lorekeep backup` — see
+[`docs/guides/backup.md`](docs/guides/backup.md).
 
 Full details, per-path overrides, and `lorekeep init`: [`docs/guides/data-home.md`](docs/guides/data-home.md).
 For usage, see the [`docs/`](docs/README.md) index.
@@ -234,6 +237,7 @@ The [`docs/`](docs/README.md) index is the entry point.
 - [Compiling the knowledge graph](docs/guides/compile.md)
 - [Serving the graph to coding agents](docs/guides/serve.md)
 - [Data home & path resolution](docs/guides/data-home.md)
+- [Backing up the data home](docs/guides/backup.md)
 
 **Architecture**
 - [Overview](docs/architecture/overview.md) · [Data model](docs/architecture/data-model.md) · [Pipeline](docs/architecture/pipeline.md) · [Journal](docs/architecture/journal.md) · [Agent](docs/architecture/agent.md) · [Permission](docs/architecture/permission.md) · [Temporal](docs/architecture/temporal.md) · [Serve & MCP](docs/architecture/serve-mcp.md) · [Testing & evaluation](docs/architecture/evaluation.md)

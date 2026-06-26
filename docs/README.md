@@ -27,3 +27,4 @@ How to use it.
 - [Compiling the knowledge graph](guides/compile.md) — `raw/*.md` → `facts.jsonl` + resolve pending.
 - [Serving the graph to coding agents](guides/serve.md) — wire Claude Code / Cursor / Codex over MCP, write tools, daemon.
 - [Data home & path resolution](guides/data-home.md) — env / `LOREKEEP_HOME` / dev mode / XDG.
+- [Backing up the data home](guides/backup.md) — `lorekeep backup` to a private git repo: setup, restore, multi-device conflicts.

@@ -5,7 +5,7 @@ Lorekeep resolves its data home with a 4-tier precedence (high → low). All com
 ```
 1. explicit per-path env   LOREKEEP_RAW / LOREKEEP_OUT / LOREKEEP_CACHE / LOREKEEP_SCHEMA / LOREKEEP_CONFIG
 2. LOREKEEP_HOME            → <home>/{config.yaml, schema.json, raw/, graph/, cache.json}
-3. dev mode                 .lorekeep/ or raw/ present in CWD, or LOREKEEP_DEV=1 → repo layout
+3. dev mode                 .lorekeep/ present in CWD, or LOREKEEP_DEV=1 → <cwd>/.lorekeep/{...}
 4. XDG (default)            ~/.config/lorekeep (config) + ~/.local/share/lorekeep (data)
 ```
 
@@ -26,7 +26,7 @@ uvx lorekeep doctor
 From a Lorekeep source checkout (`.lorekeep/` present → auto dev mode):
 
 ```bash
-uv run lorekeep compile      # reads repo raw/, writes repo graph/
+uv run lorekeep compile      # reads .lorekeep/raw/, writes .lorekeep/graph/
 uv run lorekeep serve
 ```
 
