@@ -2,7 +2,7 @@
 
 Lorekeep builds a **living temporal knowledge graph** that coding agents both **read and contribute to** — served over MCP, with per-namespace permission and zero marginal LLM cost for agent contributions.
 
-- New here? Start with the **[Quickstart](../README.md#quickstart)** in the project README, then the [Compiling](guides/compile.md) + [Serving](guides/serve.md) guides.
+- New here? Start with the **[Getting started guide](guides/getting-started.md)** (install → compile → serve → backup in 10 minutes), or the terse **[Quickstart](../README.md#quickstart)** in the project README.
 - Want the why and how? Read **[Architecture overview](architecture/overview.md)**.
 
 ## Architecture
@@ -23,6 +23,7 @@ Concepts and design — how the system fits together.
 
 How to use it.
 
+- [**Getting started**](guides/getting-started.md) — install → compile → serve → backup in 10 minutes. Start here.
 - [Importing agent sessions](guides/import.md) — Claude Code + Cursor → `raw/`.
 - [Compiling the knowledge graph](guides/compile.md) — `raw/*.md` → `facts.jsonl` + resolve pending.
 - [Serving the graph to coding agents](guides/serve.md) — wire Claude Code / Cursor / Codex over MCP, write tools, daemon.

@@ -233,6 +233,7 @@ docs/                  README.md index, architecture/, guides/
 The [`docs/`](docs/README.md) index is the entry point.
 
 **Guides**
+- [Getting started](docs/guides/getting-started.md)
 - [Importing agent sessions](docs/guides/import.md)
 - [Compiling the knowledge graph](docs/guides/compile.md)
 - [Serving the graph to coding agents](docs/guides/serve.md)
