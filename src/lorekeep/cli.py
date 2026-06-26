@@ -319,6 +319,31 @@ def init() -> None:
         typer.echo("  (existing config/schema preserved)")
 
 
+@app.command()
+def backup(
+    init_remote: str = typer.Option(
+        None, "--init", help="remote URL; sets up the backup repo + initial push"
+    ),
+) -> None:
+    """Commit + push the data home to your private backup repo."""
+    from lorekeep.backup import BackupError, backup as backup_home, init_backup
+
+    home = resolve_paths()["home"]
+    try:
+        if init_remote:
+            init_backup(home, init_remote)
+            typer.echo(f"backup: repo ready at {home} -> {init_remote}")
+        else:
+            committed = backup_home(home)
+            if committed:
+                typer.echo(f"backup: pushed changes from {home}")
+            else:
+                typer.echo(f"backup: nothing to commit in {home}")
+    except BackupError as exc:
+        typer.echo(f"backup failed: {exc}")
+        raise typer.Exit(code=1)
+
+
 @app.command("import")
 def import_cmd(
     from_source: str = typer.Option(
