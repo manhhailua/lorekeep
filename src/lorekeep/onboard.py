@@ -51,6 +51,7 @@ def run_onboarding(
     interactive: bool,
     prompt: Callable[[str], str] | None = None,
     force: bool = False,
+    update_ns: bool = True,
 ) -> bool:
     profile = home / "raw" / PROFILE_NS / "profile.md"
     if profile.exists() and not force:
@@ -66,5 +67,9 @@ def run_onboarding(
         name = role = what = tz = ""
 
     write_profile(home / "raw", profile_markdown(name, role, what, tz))
-    update_ns_default(config_path, [PROFILE_NS, "public"])
+    # Only update ns.default on a fresh config (update_ns=True). When re-onboarding
+    # the profile on an existing config (--force), leave a user-customized
+    # ns.default untouched.
+    if update_ns:
+        update_ns_default(config_path, [PROFILE_NS, "public"])
     return True

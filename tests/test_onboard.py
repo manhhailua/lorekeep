@@ -97,3 +97,23 @@ def test_run_onboarding_force_overwrites(tmp_path: Path):
     )
     assert ran is True
     assert "Alice" in (home / "raw" / "me" / "profile.md").read_text(encoding="utf-8")
+
+
+def test_run_onboarding_update_ns_false_preserves_ns(tmp_path: Path):
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "raw" / "me").mkdir(parents=True)
+    (home / "raw" / "me" / "profile.md").write_text("old", encoding="utf-8")
+    # A user-customized ns.default that must NOT be clobbered.
+    cfg = home / "config.yaml"
+    cfg.write_text("ns:\n  default: [custom]\n", encoding="utf-8")
+    answers = iter(["Alice", "Eng", "Backend", "UTC"])
+    ran = run_onboarding(
+        home, cfg, interactive=True, prompt=lambda _: next(answers),
+        force=True, update_ns=False,
+    )
+    assert ran is True
+    # Profile was rewritten.
+    assert "Alice" in (home / "raw" / "me" / "profile.md").read_text(encoding="utf-8")
+    # ns.default left untouched.
+    assert yaml.safe_load(cfg.read_text(encoding="utf-8"))["ns"]["default"] == ["custom"]

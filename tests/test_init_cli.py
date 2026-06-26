@@ -48,3 +48,23 @@ def test_init_no_onboard_skips_profile(tmp_path: Path, monkeypatch):
     result = runner.invoke(app, ["init", "--no-onboard"])
     assert result.exit_code == 0, result.stdout
     assert not (home / "raw" / "me" / "profile.md").exists()
+
+
+def test_init_force_reonboards_profile_on_existing_config(tmp_path: Path, monkeypatch):
+    """--force rewrites the profile on an existing config; ns.default preserved."""
+    import yaml
+    home = tmp_path / "home"
+    home.mkdir()
+    (home / "raw" / "me").mkdir(parents=True)
+    # Seed an existing config + profile ("old"). CliRunner is non-tty, so the
+    # rewritten profile is the empty template — assert content changed AND
+    # ns.default (seeded non-default) is preserved.
+    (home / "raw" / "me" / "profile.md").write_text("old", encoding="utf-8")
+    (home / "config.yaml").write_text("ns:\n  default: [public]\n", encoding="utf-8")
+    monkeypatch.setenv("LOREKEEP_HOME", str(home))
+    result = runner.invoke(app, ["init", "--force"])
+    assert result.exit_code == 0, result.stdout
+    md = (home / "raw" / "me" / "profile.md").read_text(encoding="utf-8")
+    assert md != "old"  # profile rewritten
+    data = yaml.safe_load((home / "config.yaml").read_text(encoding="utf-8"))
+    assert data["ns"]["default"] == ["public"]  # preserved, not clobbered to [me, public]

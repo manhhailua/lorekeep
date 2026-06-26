@@ -324,10 +324,15 @@ def init(
     from lorekeep.onboard import run_onboarding
     interactive = sys.stdin.isatty()
     ran = False
-    # Onboard only on a freshly-created config; leave an existing config
-    # (which may carry a partial layout or a different ns.default) untouched.
-    if not no_onboard and config_fresh:
-        ran = run_onboarding(p["home"], p["config"], interactive=interactive, force=force)
+    # Fresh config: full onboarding (profile + ns.default); `force` controls
+    # profile overwrite as today.  Existing config + --force: re-onboard the
+    # profile only, leaving a user-customized ns.default untouched (idempotent).
+    # Existing config without --force: onboarding skipped.
+    if not no_onboard:
+        if config_fresh:
+            ran = run_onboarding(p["home"], p["config"], interactive=interactive, force=force)
+        elif force:
+            ran = run_onboarding(p["home"], p["config"], interactive=interactive, force=True, update_ns=False)
 
     typer.echo(f"home ready: config={p['config']}")
     typer.echo(f"  schema={p['schema']}  raw={p['raw']}  graph={p['out']}")
