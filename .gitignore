@@ -4,10 +4,6 @@
 *.sqlite
 *.sqlite-*
 
-# Lorekeep compiled graph (reproducible via `lorekeep compile`; keep schema.json)
-graph/facts.jsonl
-graph/manifest.json
-
 # Personal trial data (local-only; do not commit — contains personal/work memory)
 raw/*-memory/
 raw/personal/
