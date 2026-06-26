@@ -31,11 +31,6 @@ def _build_provider(config: Config) -> LiteLLMProvider:
         api_key = os.environ.get(config.provider.api_key_env)
     if not api_key:
         api_key = config.provider.api_key
-    if api_key is config.provider.api_key and api_key:
-        typer.echo(
-            "warning: using inline api_key from config.yaml — prefer api_key_env "
-            "(env var). config.yaml is gitignored but env is safer."
-        )
     return LiteLLMProvider(
         model=config.provider.model,
         api_base=config.provider.api_base,
