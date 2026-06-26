@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 import typer
@@ -297,12 +298,20 @@ def doctor() -> None:
 
 
 @app.command()
-def init() -> None:
-    """Bootstrap the data home: config + schema + raw/graph dirs."""
+def init(
+    no_onboard: bool = typer.Option(
+        False, "--no-onboard", help="skip the me-namespace onboarding prompt"
+    ),
+    force: bool = typer.Option(
+        False, "--force", help="overwrite an existing raw/me/profile.md"
+    ),
+) -> None:
+    """Bootstrap the data home: config + schema + raw/graph dirs + me profile."""
     p = resolve_paths()
     created = []
+    config_fresh = not p["config"].exists()
     p["config"].parent.mkdir(parents=True, exist_ok=True)
-    if not p["config"].exists():
+    if config_fresh:
         p["config"].write_text(DEFAULT_CONFIG_YAML)
         created.append(str(p["config"]))
     p["schema"].parent.mkdir(parents=True, exist_ok=True)
@@ -311,12 +320,24 @@ def init() -> None:
         created.append(str(p["schema"]))
     p["raw"].mkdir(parents=True, exist_ok=True)
     p["out"].mkdir(parents=True, exist_ok=True)
+
+    from lorekeep.onboard import run_onboarding
+    interactive = sys.stdin.isatty()
+    ran = False
+    # Onboard only on a freshly-created config; leave an existing config
+    # (which may carry a partial layout or a different ns.default) untouched.
+    if not no_onboard and config_fresh:
+        ran = run_onboarding(p["home"], p["config"], interactive=interactive, force=force)
+
     typer.echo(f"home ready: config={p['config']}")
     typer.echo(f"  schema={p['schema']}  raw={p['raw']}  graph={p['out']}")
     if created:
         typer.echo(f"  wrote defaults: {created}")
     else:
         typer.echo("  (existing config/schema preserved)")
+    if ran:
+        typer.echo("  wrote raw/me/profile.md; ns.default=[me, public]")
+        typer.echo("  next: `lorekeep compile`, then `lorekeep mcp add --ns me`")
 
 
 @app.command()
