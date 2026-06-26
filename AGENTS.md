@@ -32,6 +32,7 @@ uv run lorekeep <command>                    # run the CLI in dev mode
 | `mcp add --agent claude\|cursor\|codex --ns NS` | Write agent MCP config (`.mcp.json`) |
 | `import --from claude\|cursor` | Import agent sessions into `raw/` (claude: quick+deep; cursor: deep-only) |
 | `doctor` | Verify install: graph loads, schema valid, a tool responds |
+| `backup [--init <remote-url>]` | Commit + push `.lorekeep/` to your private backup git repo |
 | `version` | Print version |
 
 **Offline / no-LLM mode:** set `LOREKEEP_PROVIDER=fake` to make `compile` and `import` use `FakeProvider` with canned responses. **All CLI/compile/import tests use this** — no API key or real model required.
@@ -59,7 +60,7 @@ Pydantic, all `frozen=True`, `extra="forbid"`. `Node` / `Edge` are the two `kind
 `FastMCP` with 8 read-only tools (`search`, `get_node`, `neighbors`, `at_time`, `history`, `changes`, `list_namespaces`, `schema`). Module-global `ScopedGraph` is set by `configure()`; `_require()` lazy-reloads when `facts.jsonl` mtime changes (so `compile` is visible without reconnecting). Tools are plain functions registered with `@mcp.tool()` but stay directly callable — **tests invoke them directly, no MCP transport**. The writer uses atomic `os.replace` so lazy-reload never reads a half-written file.
 
 ### Path resolution (`paths.py`)
-Pure (no I/O), 4-tier precedence high→low: explicit `LOREKEEP_RAW/OUT/CACHE/SCHEMA/CONFIG` env → `LOREKEEP_HOME` → **dev mode** (`.lorekeep/` or `raw/` present in CWD, or `LOREKEEP_DEV=1`; auto-detected in a source checkout) → XDG (`platformdirs`). Running `uv run lorekeep …` from the repo uses the repo's own `raw/` + `graph/` with zero migration.
+Pure (no I/O), 4-tier precedence high→low: explicit `LOREKEEP_RAW/OUT/CACHE/SCHEMA/CONFIG` env → `LOREKEEP_HOME` → **dev mode** (`.lorekeep/` present in CWD, or `LOREKEEP_DEV=1`; auto-detected in a source checkout) — all data lives under `cwd/.lorekeep/` (`config.yaml`, `schema.json`, `raw/`, `graph/`, `cache.json`), mirroring the `LOREKEEP_HOME` layout → XDG (`platformdirs`). Running `uv run lorekeep …` from the repo uses the repo's own `.lorekeep/` data home with zero migration.
 
 ### Provider pluggability (`compile/providers.py`)
 `LiteLLMProvider` (OpenAI / Anthropic / DashScope/Qwen / Ollama via litellm model strings) and `FakeProvider` (tests/offline). Model is set in `config.yaml` as a litellm string.
@@ -67,6 +68,10 @@ Pure (no I/O), 4-tier precedence high→low: explicit `LOREKEEP_RAW/OUT/CACHE/SC
 ## Configuration & keys
 
 `config.yaml` (precedence: explicit `LOREKEEP_*` env > `LOREKEEP_HOME` > dev marker > XDG). **API keys never go in committed files** — use `provider.api_key_env` (name of an env var); inline `provider.api_key` is allowed only in the gitignored local config and warns on use. Serve-time scope comes from `LOREKEEP_NS` (comma-separated) env or `config.ns.default`. Template: `.lorekeep/config.yaml.example`.
+
+### Backup
+
+`lorekeep backup --init <remote-url>` initializes a **separate** git repo inside the data home (`.lorekeep/` in dev) and pushes it to your private `<remote-url>`. Subsequent `lorekeep backup` calls commit and push changes. The backup repo tracks `raw/` and `schema.json`; it ignores `config.yaml` (may hold an API key) and the regenerable `graph/facts.jsonl`, `graph/manifest.json`, `cache.json`. This is independent of the lorekeep tool repository.
 
 ## Conventions
 

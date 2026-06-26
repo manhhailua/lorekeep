@@ -4,10 +4,6 @@
 *.sqlite
 *.sqlite-*
 
-# Personal trial data (local-only; do not commit — contains personal/work memory)
-raw/*-memory/
-raw/personal/
-raw/claude-session/
 .mcp.json
 
 # Python
