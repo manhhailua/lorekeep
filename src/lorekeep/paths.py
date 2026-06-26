@@ -2,7 +2,7 @@
 
 1. explicit per-path env (LOREKEEP_RAW/OUT/CACHE/SCHEMA/CONFIG) - tests + power users
 2. LOREKEEP_HOME -> unified <home>/{config.yaml,schema.json,raw,graph,cache.json}
-3. dev mode (.lorekeep/ or raw/ in CWD, or LOREKEEP_DEV=1) -> current CWD layout
+3. dev mode (.lorekeep/ in CWD, or LOREKEEP_DEV=1) -> <cwd>/.lorekeep/{...}
 4. default -> XDG (platformdirs): config + data dirs
 
 Pure: no I/O, no side effects. Fully testable.
@@ -14,49 +14,46 @@ from pathlib import Path
 
 
 def _dev_marker(cwd: Path) -> bool:
-    return (cwd / ".lorekeep").is_dir() or (cwd / "raw").is_dir()
+    return (cwd / ".lorekeep").is_dir()
 
 
 def resolve_paths() -> dict[str, Path]:
     cwd = Path.cwd()
-    home = os.environ.get("LOREKEEP_HOME")
+    home_env = os.environ.get("LOREKEEP_HOME")
     dev = os.environ.get("LOREKEEP_DEV") == "1" or _dev_marker(cwd)
 
-    if home:
-        base = Path(home).expanduser()
-        config = base / "config.yaml"
-        cache = base / "cache.json"
-        raw = base / "raw"
-        out = base / "graph"
-        schema = base / "schema.json"
+    if home_env:
+        home = Path(home_env).expanduser()
+        config = home / "config.yaml"
+        cache = home / "cache.json"
+        raw = home / "raw"
+        out = home / "graph"
+        schema = home / "schema.json"
+        pending = home / "pending"
     elif dev:
-        config = cwd / ".lorekeep" / "config.yaml"
-        cache = cwd / ".lorekeep" / "cache.json"
-        raw = cwd / "raw"
-        out = cwd / "graph"
-        schema = cwd / "graph" / "schema.json"
+        home = cwd / ".lorekeep"
+        config = home / "config.yaml"
+        cache = home / "cache.json"
+        raw = home / "raw"
+        out = home / "graph"
+        schema = home / "schema.json"
+        pending = home / "pending"
     else:
         from platformdirs import user_config_dir, user_data_dir
-        cfg_dir = Path(user_config_dir("lorekeep"))
-        data_dir = Path(user_data_dir("lorekeep"))
-        config = cfg_dir / "config.yaml"
-        cache = data_dir / "cache.json"
-        raw = data_dir / "raw"
-        out = data_dir / "graph"
-        schema = data_dir / "schema.json"
+        home = Path(user_data_dir("lorekeep"))
+        config = Path(user_config_dir("lorekeep")) / "config.yaml"
+        cache = home / "cache.json"
+        raw = home / "raw"
+        out = home / "graph"
+        schema = home / "schema.json"
+        pending = home / "pending"
 
     def override(env_name: str, current: Path) -> Path:
         v = os.environ.get(env_name)
         return Path(v).expanduser() if v else current
 
-    if home:
-        pending = base / "pending"
-    elif dev:
-        pending = cwd / "pending"
-    else:
-        pending = data_dir / "pending"
-
     return {
+        "home": home,
         "raw": override("LOREKEEP_RAW", raw),
         "out": override("LOREKEEP_OUT", out),
         "cache": override("LOREKEEP_CACHE", cache),
