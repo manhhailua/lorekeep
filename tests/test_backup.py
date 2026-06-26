@@ -81,3 +81,54 @@ def test_backup_never_tracks_secret_or_regenerable(tmp_path: Path):
     assert "graph/facts.jsonl" not in tracked
     assert "graph/manifest.json" not in tracked
     assert "cache.json" not in tracked
+
+
+def test_backup_never_tracks_pending_journals(tmp_path: Path):
+    home = tmp_path / "home"
+    remote = _bare_remote(tmp_path)
+    init_backup(home, remote)
+    (home / "pending" / "public").mkdir(parents=True)
+    (home / "pending" / "public" / "journal.jsonl").write_text(
+        '{"id":"x","kind":"node","ns":"public","label":"leaked","type":"Concept"}\n'
+    )
+    backup(home)
+    tracked = _tracked(home)
+    assert "pending/public/journal.jsonl" not in tracked
+
+
+def test_backup_retries_previously_rejected_push(tmp_path: Path):
+    """Even with nothing new staged, backup() must still push — retrying a
+    commit that landed locally but never reached the remote."""
+    home = tmp_path / "home"
+    remote = _bare_remote(tmp_path)
+    init_backup(home, remote)
+    # Make a local commit that the remote does not yet have, with nothing new
+    # staged afterward (so _commit() returns committed=False).
+    (home / "raw" / "ns").mkdir(parents=True)
+    (home / "raw" / "ns" / "pre.md").write_text("# pre")
+    subprocess.run(["git", "add", "-A"], cwd=home, check=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "pre-made local"],
+        cwd=home,
+        check=True,
+    )
+    made = backup(home)
+    assert made is False  # nothing newly staged by backup()
+    # The pre-made commit must have reached the remote.
+    remote_refs = subprocess.run(
+        ["git", "ls-remote", remote],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert remote_refs.strip() != ""
+    # And the remote's HEAD must point at our local HEAD.
+    remote_head = remote_refs.splitlines()[0].split()[0]
+    local_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=home,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert remote_head == local_head

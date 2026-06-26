@@ -15,6 +15,7 @@ config.yaml
 graph/facts.jsonl
 graph/manifest.json
 cache.json
+pending/
 """
 
 
@@ -52,7 +53,7 @@ def _commit(home: Path, prefix: str) -> bool:
     staged = _git(["diff", "--cached", "--name-only"], home)
     if not staged:
         return False
-    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ts = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     _git(["commit", "-q", "-m", f"{prefix} {ts}"], home)
     return True
 
@@ -76,12 +77,17 @@ def init_backup(home: Path, remote: str) -> None:
 
 
 def backup(home: Path) -> bool:
-    """Commit + push pending changes. Raise BackupError if not a backup repo."""
+    """Commit + push pending changes. Raise BackupError if not a backup repo.
+
+    Push is always attempted, independent of whether a new commit was made, so a
+    previously-rejected push (remote diverged) is retried. When nothing remains
+    to push, git exits 0 ("Everything up-to-date"). The `committed` return bool
+    reflects only whether a new commit was created.
+    """
     if not (home / ".git").is_dir():
         raise BackupError(
             f"not a backup repo at {home} — run `lorekeep backup --init <remote>` first"
         )
     committed = _commit(home, "backup")
-    if committed:
-        _git(["push"], home)
+    _git(["push"], home)
     return committed
