@@ -1,6 +1,7 @@
 # Lorekeep local-only artifacts (never committed) — except the config template
 .lorekeep/*
 !.lorekeep/config.yaml.example
+!.lorekeep/schema.json
 *.sqlite
 *.sqlite-*
 
