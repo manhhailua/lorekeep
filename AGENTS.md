@@ -24,7 +24,7 @@ uv run lorekeep <command>                    # run the CLI in dev mode
 
 | Command | Purpose |
 |---|---|
-| `init` | Bootstrap data home (config + schema + raw/graph dirs) |
+| `init [--no-onboard] [--force]` | Bootstrap data home + onboard a `me` namespace (interactive profile on a tty) |
 | `compile` | `raw/*.md` → `graph/facts.jsonl` + `manifest.json` (runs the LLM pipeline) |
 | `check` | Validate compiled graph loads, no dangling edges (exit 1 on failure) |
 | `eval` | Tier-1 construction P/R/F1 vs gold corpus + structure metrics |

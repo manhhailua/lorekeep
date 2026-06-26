@@ -49,6 +49,15 @@ Verify the install:
 uvx lorekeep doctor       # graph loads, schema valid, a tool responds
 ```
 
+> **First run:** when `init` creates a fresh config, it onboards a `me`
+> namespace — on a terminal it prompts for your name, role, what you work on,
+> and timezone, then writes `raw/me/profile.md` and scopes `ns.default` to
+> `[me, public]`. Non-interactive shells (CI) get a template profile to fill in
+> later; `--no-onboard` skips onboarding entirely (no profile written); `--force`
+> overwrites an existing `raw/me/profile.md` on a fresh config. Onboarding only
+> runs on a just-created config, so re-running `init` on an existing data home
+> leaves `ns.default` and the profile untouched.
+
 ## 3. Add your raw docs
 
 Drop markdown under `<data-home>/raw/<namespace>/`. A namespace is the
