@@ -35,6 +35,10 @@ class LiteLLMProvider:
 
     def __init__(self, model: str, api_base: str | None = None,
                  temperature: float = 0.0, api_key: str | None = None) -> None:
+        import litellm
+        litellm.suppress_debug_info = True
+        litellm.set_verbose = False
+
         self.model = model
         self.api_base = api_base
         self.temperature = temperature
