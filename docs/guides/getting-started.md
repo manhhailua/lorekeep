@@ -37,10 +37,21 @@ uv run lorekeep version
 uvx lorekeep init
 ```
 
-`init` is idempotent — it creates the data home layout and writes default
-`config.yaml` + `schema.json` only if they're missing. From a source checkout
-it uses the repo's own `.lorekeep/`; for an installed copy it uses XDG
-(`~/.config/lorekeep` for config, `~/.local/share/lorekeep` for data). See
+`init` is idempotent and **interactive on first run** — it asks:
+
+1. **LLM provider** — OpenAI / Anthropic / DashScope-Qwen / Ollama (local) /
+   Skip (offline). Pick one; model and API key env are pre-filled from the
+   preset. Override either if you want.
+2. **Default namespace** — defaults to the current directory name. This is the
+   permission unit agents are scoped to (e.g. `backend`, `myproject`).
+
+It then writes `config.yaml` + `schema.json`, creates `raw/` + `graph/` dirs,
+and drops a **sample doc** at `raw/<ns>/welcome.md` so you can compile
+immediately.
+
+Non-interactive (CI, scripts): `uvx lorekeep init --yes`. From a source
+checkout it uses the repo's own `.lorekeep/`; for an installed copy it uses
+XDG (`~/.config/lorekeep` for config, `~/.local/share/lorekeep` for data). See
 [Data home & path resolution](data-home.md) for the full precedence table.
 
 Verify the install:

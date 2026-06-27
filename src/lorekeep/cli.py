@@ -12,7 +12,7 @@ from lorekeep.compile.providers import FakeProvider, LiteLLMProvider
 from lorekeep.config import Config, load_config
 from lorekeep.pipeline import compile_graph
 from lorekeep.paths import resolve_paths
-from lorekeep.defaults import DEFAULT_CONFIG_YAML, DEFAULT_SCHEMA
+from lorekeep.defaults import DEFAULT_CONFIG_YAML, DEFAULT_SCHEMA, PROVIDER_PRESETS, SAMPLE_DOC
 from lorekeep.schema_io import load_schema
 
 app = typer.Typer(help="Lorekeep — compile team docs into a temporal knowledge graph.")
@@ -296,27 +296,105 @@ def doctor() -> None:
     )
 
 
+def _is_interactive() -> bool:
+    """True if stdin is a TTY (user can answer prompts)."""
+    import sys
+    return sys.stdin.isatty()
+
+
 @app.command()
-def init() -> None:
+def init(
+    yes: bool = typer.Option(
+        False, "--yes", "-y",
+        help="Skip interactive prompts, use defaults",
+    ),
+) -> None:
     """Bootstrap the data home: config + schema + raw/graph dirs."""
     p = resolve_paths()
     created = []
     p["config"].parent.mkdir(parents=True, exist_ok=True)
-    if not p["config"].exists():
-        p["config"].write_text(DEFAULT_CONFIG_YAML)
+    config_existed = p["config"].exists()
+    ns = "public"
+
+    if not config_existed:
+        if not yes and _is_interactive():
+            ns = _interactive_init(p)
+        else:
+            p["config"].write_text(DEFAULT_CONFIG_YAML)
         created.append(str(p["config"]))
+
     p["schema"].parent.mkdir(parents=True, exist_ok=True)
     if not p["schema"].exists():
         p["schema"].write_text(json.dumps(DEFAULT_SCHEMA, indent=2))
         created.append(str(p["schema"]))
+
     p["raw"].mkdir(parents=True, exist_ok=True)
     p["out"].mkdir(parents=True, exist_ok=True)
+
     typer.echo(f"home ready: config={p['config']}")
     typer.echo(f"  schema={p['schema']}  raw={p['raw']}  graph={p['out']}")
     if created:
         typer.echo(f"  wrote defaults: {created}")
     else:
         typer.echo("  (existing config/schema preserved)")
+
+    # Create a sample doc if raw/ is empty
+    if not any(p["raw"].rglob("*.md")):
+        ns_dir = p["raw"] / ns
+        ns_dir.mkdir(parents=True, exist_ok=True)
+        (ns_dir / "welcome.md").write_text(SAMPLE_DOC)
+        typer.echo(f"  sample: {ns_dir / 'welcome.md'}")
+        typer.echo("  (delete it once you add your own docs)")
+
+    if not config_existed:
+        typer.echo("\nNext steps:")
+        typer.echo("  1. Set your API key:  export <API_KEY_ENV>=sk-...")
+        typer.echo("  2. Compile:           uvx lorekeep compile   (or LOREKEEP_PROVIDER=fake)")
+        typer.echo(f"  3. Wire an agent:     uvx lorekeep mcp add --agent claude --ns {ns}")
+
+
+def _interactive_init(p: dict) -> str:
+    """Walk the user through provider, model, API key, and namespace selection."""
+    import yaml
+
+    typer.echo("\n=== Lorekeep setup ===\n")
+
+    provider_menu = "Choose an LLM provider:\n" + "\n".join(
+        f"  {k}. {v['label']}" for k, v in PROVIDER_PRESETS.items()
+    )
+    choice = typer.prompt(provider_menu, default="1")
+    preset = PROVIDER_PRESETS.get(choice, PROVIDER_PRESETS["1"])
+    typer.echo(f"  → {preset['label']}\n")
+
+    model = typer.prompt("Model (litellm string)", default=preset["model"])
+
+    api_key_env = preset.get("api_key_env")
+    if api_key_env:
+        api_key_env = typer.prompt("API key env var name", default=api_key_env)
+        typer.echo(f"  → Set the key later: export {api_key_env}=sk-...\n")
+    else:
+        typer.echo("  → No API key needed for this provider.\n")
+
+    cwd_name = Path.cwd().name
+    ns = typer.prompt("Default namespace", default=cwd_name)
+
+    install_source = "local" if (Path.cwd() / ".lorekeep").exists() else "pypi"
+
+    config = {
+        "provider": {
+            "backend": preset["backend"],
+            "model": model,
+            "api_base": preset["api_base"],
+            "api_key_env": api_key_env,
+            "api_key": None,
+            "temperature": 0.0,
+        },
+        "compile": {"chunk_lines": 60},
+        "ns": {"default": [ns]},
+        "install_source": install_source,
+    }
+    p["config"].write_text(yaml.dump(config, default_flow_style=False, sort_keys=False))
+    return ns
 
 
 @app.command()
