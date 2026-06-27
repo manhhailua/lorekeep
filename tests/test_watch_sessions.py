@@ -113,11 +113,14 @@ def test_auto_resolve_preserves_graph_on_no_pending_entries(tmp_path: Path, fixt
 # ── agent watch CLI ───────────────────────────────────────────────────────
 
 
-def test_watch_help_shows_session_flag():
+def test_watch_help_shows_session_flag(monkeypatch):
     """agent watch --help mentions --watch-sessions."""
+    import re
+    monkeypatch.setenv("TERM", "dumb")
     result = runner.invoke(app, ["agent", "watch", "--help"])
     assert result.exit_code == 0
-    assert "--watch-sessions" in result.stdout
+    clean = re.sub(r'\x1b\[[0-9;]*m', '', result.output)
+    assert "--watch-sessions" in clean
 
 
 def test_watch_boots_and_shuts_down_cleanly(monkeypatch, tmp_path: Path):
