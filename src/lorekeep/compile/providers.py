@@ -35,9 +35,17 @@ class LiteLLMProvider:
 
     def __init__(self, model: str, api_base: str | None = None,
                  temperature: float = 0.0, api_key: str | None = None) -> None:
+        import logging
         import litellm
+        import os
+
         litellm.suppress_debug_info = True
         litellm.set_verbose = False
+        logging.getLogger("litellm").setLevel(logging.WARNING)
+        logging.getLogger("LiteLLM").setLevel(logging.WARNING)
+        logging.getLogger("LiteLLM Router").setLevel(logging.WARNING)
+        logging.getLogger("LiteLLM Proxy").setLevel(logging.WARNING)
+        os.environ["LITELLM_LOG"] = "WARNING"
 
         self.model = model
         self.api_base = api_base
