@@ -334,11 +334,11 @@ def backup(
             init_backup(home, init_remote)
             typer.echo(f"backup: repo ready at {home} -> {init_remote}")
         else:
-            committed = backup_home(home)
-            if committed:
-                typer.echo(f"backup: pushed changes from {home}")
+            pushed = backup_home(home)
+            if pushed:
+                typer.echo(f"backup: pushed to remote from {home}")
             else:
-                typer.echo(f"backup: nothing to commit in {home}")
+                typer.echo(f"backup: up to date (no changes at {home})")
     except BackupError as exc:
         typer.echo(f"backup failed: {exc}")
         raise typer.Exit(code=1)

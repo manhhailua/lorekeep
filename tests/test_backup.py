@@ -26,6 +26,14 @@ def _log(home: Path) -> str:
     ).stdout
 
 
+def _git_cmd(args: list[str], cwd: Path) -> None:
+    """Run git with inline identity (same pattern as backup._git)."""
+    subprocess.run(
+        ["git", "-c", "user.email=test@test.local", "-c", "user.name=test", *args],
+        cwd=cwd, check=True,
+    )
+
+
 def test_init_backup_creates_repo_gitignore_and_remote(tmp_path: Path):
     home = tmp_path / "home"
     (home / "raw" / "ns").mkdir(parents=True)
@@ -55,8 +63,8 @@ def test_backup_skips_when_nothing_staged(tmp_path: Path):
     home = tmp_path / "home"
     remote = _bare_remote(tmp_path)
     init_backup(home, remote)
-    made = backup(home)
-    assert made is False
+    pushed = backup(home)
+    assert pushed is False
 
 
 def test_backup_raises_when_not_a_repo(tmp_path: Path):
@@ -98,31 +106,26 @@ def test_backup_never_tracks_pending_journals(tmp_path: Path):
 
 def test_backup_retries_previously_rejected_push(tmp_path: Path):
     """Even with nothing new staged, backup() must still push — retrying a
-    commit that landed locally but never reached the remote."""
+    commit that landed locally but never reached the remote.  The remote SHA
+    changes, so ``backup()`` returns ``True``."""
     home = tmp_path / "home"
     remote = _bare_remote(tmp_path)
     init_backup(home, remote)
     # Make a local commit that the remote does not yet have, with nothing new
-    # staged afterward (so _commit() returns committed=False).
+    # staged afterward (so _commit() returns False internally).
     (home / "raw" / "ns").mkdir(parents=True)
     (home / "raw" / "ns" / "pre.md").write_text("# pre")
-    subprocess.run(["git", "add", "-A"], cwd=home, check=True)
-    subprocess.run(
-        ["git", "commit", "-q", "-m", "pre-made local"],
-        cwd=home,
-        check=True,
-    )
-    made = backup(home)
-    assert made is False  # nothing newly staged by backup()
-    # The pre-made commit must have reached the remote.
+    _git_cmd(["add", "-A"], home)
+    _git_cmd(["commit", "-q", "-m", "pre-made local"], home)
+    pushed = backup(home)
+    assert pushed is True  # remote advanced — pre-made commit was pushed
+    # The remote's HEAD must point at our local HEAD.
     remote_refs = subprocess.run(
         ["git", "ls-remote", remote],
         capture_output=True,
         text=True,
         check=True,
     ).stdout
-    assert remote_refs.strip() != ""
-    # And the remote's HEAD must point at our local HEAD.
     remote_head = remote_refs.splitlines()[0].split()[0]
     local_head = subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -132,3 +135,24 @@ def test_backup_retries_previously_rejected_push(tmp_path: Path):
         check=True,
     ).stdout.strip()
     assert remote_head == local_head
+
+
+def test_init_backup_idempotent_on_diverged_remote(tmp_path: Path):
+    """Re-init with a remote that has commits the local lacks should not fail."""
+    home = tmp_path / "home"
+    remote = _bare_remote(tmp_path)
+    init_backup(home, remote)
+
+    # Simulate another device pushing to the remote
+    other = tmp_path / "other"
+    subprocess.run(["git", "clone", "-q", remote, str(other)], check=True)
+    (other / "raw" / "ns2").mkdir(parents=True)
+    (other / "raw" / "ns2" / "remote.md").write_text("# from remote")
+    _git_cmd(["add", "-A"], other)
+    _git_cmd(["commit", "-q", "-m", "remote-side change"], other)
+    subprocess.run(["git", "push", "-q"], cwd=other, check=True)
+
+    # Now re-init on the original device — should rebase + push without error
+    init_backup(home, remote)
+    # The remote-side file should be present locally after rebase
+    assert (home / "raw" / "ns2" / "remote.md").exists()

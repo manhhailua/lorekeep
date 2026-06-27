@@ -58,13 +58,41 @@ def _commit(home: Path, prefix: str) -> bool:
     return True
 
 
-def init_backup(home: Path, remote: str) -> None:
-    """Init a git repo in `home`, write .gitignore, set origin, commit, push.
+def _remote_sha(home: Path) -> str | None:
+    """SHA of the remote branch tracking the current local branch, or None."""
+    branch = _git(["rev-parse", "--abbrev-ref", "HEAD"], home)
+    if not branch or branch == "HEAD":
+        return None
+    out = _git(["ls-remote", "origin", branch], home)
+    return out.split()[0] if out.strip() else None
 
-    Idempotent: safe to re-run; rewrites the .gitignore and points origin at `remote`.
+
+def _reconcile_remote(home: Path) -> None:
+    """Fetch + rebase before a push, to avoid non-fast-forward rejection.
+
+    Used by ``init_backup`` on re-init (when ``.git`` already exists) so the
+    remote's commits are not lost.  Silently skips if the remote has no
+    matching branch yet (first init) or a rebase is unnecessary.
+    """
+    try:
+        _git(["fetch", "origin"], home)
+        branch = _git(["rev-parse", "--abbrev-ref", "HEAD"], home)
+        if branch and branch != "HEAD":
+            _git(["rebase", f"origin/{branch}"], home)
+    except BackupError:
+        pass  # no remote ref yet, or clean tree — push will surface real errors
+
+
+def init_backup(home: Path, remote: str) -> None:
+    """Init a git repo in ``home``, write .gitignore, set origin, commit, push.
+
+    Idempotent: safe to re-run.  On re-init (``.git`` already present) it
+    fetches and rebases on the remote before pushing, so commits pushed by
+    another device are preserved.
     """
     home.mkdir(parents=True, exist_ok=True)
-    if not (home / ".git").is_dir():
+    already_repo = (home / ".git").is_dir()
+    if not already_repo:
         _git(["init", "-q"], home)
     (home / ".gitignore").write_text(BACKUP_GITIGNORE)
     remotes = _git(["remote"], home).split()
@@ -73,21 +101,27 @@ def init_backup(home: Path, remote: str) -> None:
     else:
         _git(["remote", "add", "origin", remote], home)
     _commit(home, "backup init")
+    if already_repo:
+        _reconcile_remote(home)
     _git(["push", "-u", "origin", "HEAD"], home)
 
 
 def backup(home: Path) -> bool:
-    """Commit + push pending changes. Raise BackupError if not a backup repo.
+    """Commit + push pending changes.
 
-    Push is always attempted, independent of whether a new commit was made, so a
-    previously-rejected push (remote diverged) is retried. When nothing remains
-    to push, git exits 0 ("Everything up-to-date"). The `committed` return bool
-    reflects only whether a new commit was created.
+    Returns ``True`` if the **remote was advanced** (a new commit was pushed
+    or a previously-rejected push finally succeeded).  Returns ``False`` when
+    the remote was already up-to-date.
+
+    Push is always attempted, even without a new commit, so a previously-
+    rejected push (remote diverged, network glitch) is retried automatically.
     """
     if not (home / ".git").is_dir():
         raise BackupError(
             f"not a backup repo at {home} — run `lorekeep backup --init <remote>` first"
         )
-    committed = _commit(home, "backup")
+    before = _remote_sha(home)
+    _commit(home, "backup")
     _git(["push"], home)
-    return committed
+    after = _remote_sha(home)
+    return after != before

@@ -30,7 +30,7 @@ def test_backup_init_then_backup_round_trip(tmp_path: Path, monkeypatch):
     assert "pushed" in result.stdout
 
 
-def test_backup_when_nothing_to_commit(tmp_path: Path, monkeypatch):
+def test_backup_when_up_to_date(tmp_path: Path, monkeypatch):
     home = tmp_path / "home"
     monkeypatch.setenv("LOREKEEP_HOME", str(home))
     remote = _bare_remote(tmp_path)
@@ -38,7 +38,7 @@ def test_backup_when_nothing_to_commit(tmp_path: Path, monkeypatch):
 
     result = runner.invoke(app, ["backup"])
     assert result.exit_code == 0, result.stdout
-    assert "nothing to commit" in result.stdout
+    assert "up to date" in result.stdout
 
 
 def test_backup_without_init_fails_cleanly(tmp_path: Path, monkeypatch):

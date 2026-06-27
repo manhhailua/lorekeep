@@ -50,7 +50,7 @@ lorekeep compile     # rebuild graph/facts.jsonl from raw/
 lorekeep backup      # commit + push raw/ + schema.json
 ```
 
-If nothing changed, it prints `backup: nothing to commit` and exits 0.
+If nothing changed, it prints `backup: up to date` and exits 0.
 
 ## Restore / second device
 
@@ -102,6 +102,10 @@ conflicts resolved with standard git.
 `config.yaml` is gitignored, so **each device sets its own provider key** — the
 backup carries no secrets. On a restored machine, edit `config.yaml` (or set
 the `api_key_env` environment variable) before running `compile`.
+
+> **XDG note:** when using an installed copy (XDG mode), `config.yaml` lives in
+> `~/.config/lorekeep/` — outside the data home that gets backed up. It is not
+> tracked by the backup repo at all. Set your key on each machine after restore.
 
 ## Related
 
