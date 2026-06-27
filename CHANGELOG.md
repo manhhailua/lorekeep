@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/manhhailua/lorekeep/compare/v0.1.11...v0.1.12) (2026-06-27)
+
+
+### Features
+
+* .lorekeep data home, backup CLI, and interactive onboarding ([#39](https://github.com/manhhailua/lorekeep/issues/39)) ([9b21575](https://github.com/manhhailua/lorekeep/commit/9b215752568a89eb4a830b13fe4d97848601f874))
+
 ## [0.1.11](https://github.com/manhhailua/lorekeep/compare/v0.1.10...v0.1.11) (2026-06-22)
 
 
