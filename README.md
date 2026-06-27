@@ -92,6 +92,39 @@ uvx lorekeep doctor
 
 Restart Claude Code → 8 Lorekeep read tools are available, scoped to your namespace.
 
+## Lifecycle
+
+The full journey from install to continuous use — see the
+[Getting started guide](docs/guides/getting-started.md) for details.
+
+```
+ INIT          CURATE              SERVE              KEEP CURRENT          SYNC
+ ════          ═══════             ══════             ════════════          ════
+ ┌─────┐   ┌──────────┐        ┌─────────┐       ┌───────────────┐    ┌────────┐
+ │init │──►│raw/*.md  │──►     │mcp add  │──►    │ agent watch   │──► │backup  │
+ │     │   │compile   │ compile│serve    │ serve │  raw/  → compile│   │        │
+ │     │   │          │────────│         │       │  pending/ → resolve   │
+ └─────┘   └──────────┘        └─────────┘       │  memory/ → import │    └────────┘
+                                   ▲             └───────┬───────┘         │
+                                   │                     │ lazy-reload     │ git sync
+                                   │◄────────────────────┘                 │
+                                   │◄──────────────────────────────────────┘
+```
+
+| Step | Command | What it does |
+|---|---|---|
+| 1. Bootstrap | `lorekeep init` | Create data home (config + schema + dirs) |
+| 2. Curate | `raw/<ns>/*.md` | Drop markdown docs under namespace dirs |
+| 3. Compile | `lorekeep compile` | LLM-extract facts → `facts.jsonl` (cached, deterministic) |
+| 4. Wire agent | `lorekeep mcp add --agent claude --ns <ns>` | Write `.mcp.json`, scoped to namespace |
+| 5. Verify | `lorekeep doctor` | Graph loads, schema valid, tool responds |
+| 6. Serve | `lorekeep serve` | MCP server (read-only, 8 tools, lazy-reload) |
+| 7. Keep current | `lorekeep agent watch &` | Daemon: auto-compile, auto-resolve, delta-import sessions |
+| 8. Back up | `lorekeep backup` | Push data home to private git repo (raw/ + schema.json) |
+
+Steps 1–6 are one-time setup. Step 7 runs in the background for continuous
+updates. Step 8 syncs across machines.
+
 ## How it works
 
 ```
