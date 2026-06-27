@@ -1,0 +1,23 @@
+name: ci
+
+# Run tests on every PR to main. Acts as a required status check before merge.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - run: uv sync
+
+      - run: uv run pytest -q

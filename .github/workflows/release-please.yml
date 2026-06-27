@@ -5,11 +5,11 @@ name: release-please
 # ! = major), it creates or updates a "Release PR" that auto-merges.
 #
 # When the Release PR merges, this workflow runs again. release-please creates
-# the git tag + GitHub Release. The publish job then triggers release.yml via
-# workflow_dispatch to publish to PyPI via OIDC trusted publishing.
+# the git tag + GitHub Release, then the publish job builds and publishes to
+# PyPI via OIDC trusted publishing (no API token).
 #
-# dispatch is used instead of `uses:` because calling release.yml as a reusable
-# workflow caused startup_failure (see PR #18). dispatch works with GITHUB_TOKEN.
+# PyPI trusted publisher must be configured with:
+#   workflow = release-please.yml, environment = pypi
 on:
   push:
     branches: [main]
@@ -17,7 +17,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  actions: write            # needed to dispatch release.yml
 
 jobs:
   release-please:
@@ -35,12 +34,19 @@ jobs:
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - name: Trigger release.yml publish
-        run: |
-          gh workflow run release.yml \
-            --repo "${{ github.repository }}" \
-            --ref "${{ github.ref }}" \
-            -f ref="${{ needs.release-please.outputs.tag_name }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - run: uv build
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
