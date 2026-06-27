@@ -322,6 +322,11 @@ def init(
         else:
             p["config"].write_text(DEFAULT_CONFIG_YAML)
         created.append(str(p["config"]))
+    elif p["config"].exists():
+        try:
+            ns = load_config(p["config"]).ns.default[0]
+        except Exception:
+            pass
 
     p["schema"].parent.mkdir(parents=True, exist_ok=True)
     if not p["schema"].exists():
