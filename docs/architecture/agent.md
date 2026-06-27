@@ -1,6 +1,6 @@
 # Autonomous agent
 
-> **Status: planned (phase 2).** The autonomous agent daemon (`lorekeep agent watch`), scheduled lint, and proactive suggestions described here are target architecture. Current v1 has no agent daemon. Implementation tracked in [#15](https://github.com/manhhailua/lorekeep/issues/15).
+> **Status: partially implemented.** The daemon (`lorekeep agent watch`), `agent ingest`, `agent lint`, `agent suggest`, and `agent status` are shipped. The daemon auto-compiles on `raw/` change, auto-resolves pending journals, and delta-imports Claude session memory. Scheduled nightly lint / weekly suggest, schema evolve (`agent evolve`), and `--auto-fix` are planned. MCP write tools (runtime fact proposals) are tracked in [#15](https://github.com/manhhailua/lorekeep/issues/15).
 
 The autonomous agent (`lorekeep agent`) is the engine that keeps the knowledge graph continuously up-to-date. It watches for changes, triggers compiles and resolves, runs health checks, and suggests improvements — all without manual curator intervention for routine operations.
 

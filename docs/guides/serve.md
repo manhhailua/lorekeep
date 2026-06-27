@@ -11,8 +11,8 @@ LOREKEEP_PROVIDER=fake uvx lorekeep compile  # (or set a real provider in config
 uvx lorekeep mcp add --agent claude --ns <ns>
 uvx lorekeep doctor
 
-# Start the daemon to keep the graph up-to-date [planned phase 2]:
-# uvx lorekeep agent watch &
+# Keep the graph current with the daemon:
+uvx lorekeep agent watch &
 ```
 
 `mcp add` writes a **portable** `.mcp.json` (no machine path) when
@@ -72,25 +72,26 @@ resolve pass.
 Facts become visible after the next resolve pass (every 5 min or 50 pending
 entries when daemon is running; or run `lorekeep resolve` manually). **Note: resolve and daemon are planned for phase 2.**
 
-## Keeping the graph current [planned]
+## Keeping the graph current
 
 Three approaches, from fully automatic to manual:
 
 ```bash
-# 1. Daemon (recommended) — fully autonomous [planned]
+# 1. Daemon (recommended) — fully autonomous
 uvx lorekeep agent watch
 # Watches raw/ → auto-compile on change
-# Watches pending/ → auto-resolve every 5 min / 50 writes
-# Nightly lint + weekly suggestions
+# Watches pending/ → auto-resolve
+# Watches Claude session memory/ → delta quick-import into raw/
+# Use --no-watch-sessions to disable session watching
 
-# 2. Manual with cron — scheduled [planned]
+# 2. Manual with cron — scheduled (Linux/macOS cron)
 # */5 * * * * cd /path/to/lorekeep && uvx lorekeep resolve
 # 0 3 * * *   cd /path/to/lorekeep && uvx lorekeep agent lint
 
 # 3. Manual — curator-triggered
-uvx lorekeep compile          # rebuild from raw/ [available in v1]
-# uvx lorekeep resolve        # merge pending journals [planned]
-# uvx lorekeep agent lint     # health check [planned]
+uvx lorekeep compile          # rebuild from raw/
+uvx lorekeep resolve          # merge pending journals into facts.jsonl
+uvx lorekeep agent lint       # health check
 ```
 
 ## Connect once (lazy-reload)
@@ -102,11 +103,12 @@ rebuilt automatically. So the workflow is:
 ```bash
 <edit raw/.../*.md>
 uvx lorekeep compile          # rebuilds facts.jsonl
-# OR: agent proposes facts during conversation
-#      (daemon auto-resolves)
+# OR: agent ingest + resolve  # propose facts interactively, merge journals
+# OR: lorekeep agent watch    # daemon does compile + resolve automatically
 # next query from the agent sees the new graph — NO reconnect needed
 ```
 
-Connect the MCP server **once**; graph updates via `compile` or `resolve` are
-visible immediately. Reconnect is only needed for **code** changes (rare; the
-serve path is stable) or **scope** changes (`.mcp.json` `LOREKEEP_NS`).
+Connect the MCP server **once**; graph updates via `compile`, `resolve`, or
+the daemon are visible immediately. Reconnect is only needed for **code**
+changes (rare; the serve path is stable) or **scope** changes (`.mcp.json`
+`LOREKEEP_NS`).

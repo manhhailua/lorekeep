@@ -113,7 +113,30 @@ Restart the agent → the 8 read-only Lorekeep tools (`search`, `get_node`,
 available, scoped to `backend` (+ `public`). See
 [Serving the graph](serve.md).
 
-## 7. Back up
+## 7. Keep the graph current (daemon)
+
+The agent daemon watches for changes and keeps the graph up-to-date automatically:
+
+```bash
+uvx lorekeep agent watch &
+```
+
+It monitors three things:
+
+| Watch | Action | Cost |
+|---|---|---|
+| `raw/<ns>/*.md` changed | Auto-compile (only changed chunks hit the LLM cache) | Chunk-cache hit rate > 90% |
+| `pending/*/journal.jsonl` written | Auto-resolve (merge + dedup pending facts) | **Zero LLM** — pure Python |
+| Claude session `memory/*.md` changed | Delta quick-import into `raw/claude-memory/` → triggers compile | **Zero LLM** — file copy |
+
+The MCP server **lazy-reloads** `facts.jsonl` on every query, so graph updates
+are visible immediately — no reconnect needed. Run `agent watch` in the
+background (or under a process manager) and the graph stays current as you edit
+docs or use the coding agent.
+
+To disable session watching: `uvx lorekeep agent watch --no-watch-sessions`.
+
+## 8. Back up
 
 Push the data home to a **separate private git repo** so it syncs across
 machines (this is independent of the lorekeep tool repo):
@@ -156,5 +179,7 @@ recovery — is in [Backing up the data home](backup.md).
 - [Compiling](compile.md) — chunking, extraction, the resolve pass.
 - [Importing agent sessions](import.md) — turn Claude Code / Cursor history
   into raw docs.
+- [Serving the graph](serve.md) — the daemon lifecycle, write tools roadmap,
+  and how lazy-reload works.
 - [Architecture overview](../architecture/overview.md) — the append-and-resolve
   model and why there's no runtime write path (yet).
