@@ -41,13 +41,15 @@ uvx lorekeep init
 
 1. **LLM provider** — OpenAI / Anthropic / DashScope-Qwen / Ollama (local) /
    Skip (offline). Pick one; model and API key env are pre-filled from the
-   preset. Override either if you want.
-2. **Default namespace** — defaults to the current directory name. This is the
-   permission unit agents are scoped to (e.g. `backend`, `myproject`).
+   preset. Override either if you want. The **API key** you type is saved
+   inline into the gitignored `config.yaml` (not an env var).
+2. **Default namespace** — defaults to `me`. This is the permission unit agents
+   are scoped to (e.g. `me`, `backend`, `myproject`).
+3. **Name + bio** — a one-line profile. It becomes the first file,
+   `raw/<ns>/about.md`, so the compiled graph starts with a fact about you.
 
 It then writes `config.yaml` + `schema.json`, creates `raw/` + `graph/` dirs,
-and drops a **sample doc** at `raw/<ns>/welcome.md` so you can compile
-immediately.
+and writes `raw/<ns>/about.md`.
 
 Non-interactive (CI, scripts): `uvx lorekeep init --yes`. From a source
 checkout it uses the repo's own `.lorekeep/`; for an installed copy it uses
@@ -81,21 +83,21 @@ becomes one or more facts with `path:line` provenance back to the source.
 
 ## 4. Configure a provider (only for real compiles)
 
-Edit `config.yaml` and point it at an LLM. Use `api_key_env` (the name of an
-env var holding the key) — **never inline the key in a committed file**.
+`init` already wrote a provider into `config.yaml` during onboarding, with your
+key inline. Edit it here if you want a different one. The key lives in
+`config.yaml`, which is gitignored — so it never gets committed.
 
 ```yaml
 provider:
   backend: openai
   model: openai/deepseek-v4-flash          # any litellm model string
   api_base: https://api.deepseek.com/v1
-  api_key_env: DEEPSEEK_API_KEY
+  api_key: sk-...                          # inline; config.yaml is gitignored
   temperature: 0.0
 ```
 
-```bash
-export DEEPSEEK_API_KEY=sk-...
-```
+Prefer an env var instead? Set `api_key_env: DEEPSEEK_API_KEY` (and
+`api_key: null`), then `export DEEPSEEK_API_KEY=sk-...`. Both work.
 
 > **Offline / no key?** `export LOREKEEP_PROVIDER=fake` makes `compile` use a
 > canned response — enough to try the rest of the flow with zero API cost.

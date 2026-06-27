@@ -12,7 +12,7 @@ from lorekeep.compile.providers import FakeProvider, LiteLLMProvider
 from lorekeep.config import Config, load_config
 from lorekeep.pipeline import compile_graph
 from lorekeep.paths import resolve_paths
-from lorekeep.defaults import DEFAULT_CONFIG_YAML, DEFAULT_SCHEMA, PROVIDER_PRESETS, SAMPLE_DOC
+from lorekeep.defaults import DEFAULT_CONFIG_YAML, DEFAULT_SCHEMA, PROVIDER_PRESETS
 from lorekeep.schema_io import load_schema
 
 app = typer.Typer(help="Lorekeep — compile team docs into a temporal knowledge graph.")
@@ -315,10 +315,12 @@ def init(
     p["config"].parent.mkdir(parents=True, exist_ok=True)
     config_existed = p["config"].exists()
     ns = "public"
+    name = ""
+    bio = ""
 
     if not config_existed:
         if not yes and _is_interactive():
-            ns = _interactive_init(p)
+            ns, name, bio = _interactive_init(p)
         else:
             p["config"].write_text(DEFAULT_CONFIG_YAML)
         created.append(str(p["config"]))
@@ -343,23 +345,30 @@ def init(
     else:
         typer.echo("  (existing config/schema preserved)")
 
-    # Create a sample doc if raw/ is empty
+    # First file: the user's about.md (profile from onboarding) — replaces the
+    # generic welcome sample. Written only when raw/ is empty (fresh home).
     if not any(p["raw"].rglob("*.md")):
         ns_dir = p["raw"] / ns
         ns_dir.mkdir(parents=True, exist_ok=True)
-        (ns_dir / "welcome.md").write_text(SAMPLE_DOC)
-        typer.echo(f"  sample: {ns_dir / 'welcome.md'}")
-        typer.echo("  (delete it once you add your own docs)")
+        about_md = (
+            f"# {name or '(your name)'}\n\n"
+            f"{bio or '(your bio — a one-line intro about you)'}\n"
+        )
+        (ns_dir / "about.md").write_text(about_md)
+        typer.echo(f"  wrote: {ns_dir / 'about.md'}")
 
     if not config_existed:
         typer.echo("\nNext steps:")
-        typer.echo("  1. Set your API key:  export <API_KEY_ENV>=sk-...")
-        typer.echo("  2. Compile:           uvx lorekeep compile   (or LOREKEEP_PROVIDER=fake)")
-        typer.echo(f"  3. Wire an agent:     uvx lorekeep mcp add --agent claude --ns {ns}")
+        typer.echo("  1. Compile:           uvx lorekeep compile   (or LOREKEEP_PROVIDER=fake)")
+        typer.echo(f"  2. Wire an agent:     uvx lorekeep mcp add --agent claude --ns {ns}")
 
 
-def _interactive_init(p: dict) -> str:
-    """Walk the user through provider, model, API key, and namespace selection."""
+def _interactive_init(p: dict) -> tuple[str, str, str]:
+    """Walk the user through provider, model, API key, namespace, name, and bio.
+
+    Returns ``(ns, name, bio)`` — the namespace plus the user's profile answers,
+    so the caller can write the first file ``raw/<ns>/about.md``.
+    """
     import yaml
 
     typer.echo("\n=== Lorekeep setup ===\n")
@@ -373,15 +382,24 @@ def _interactive_init(p: dict) -> str:
 
     model = typer.prompt("Model (litellm string)", default=preset["model"])
 
-    api_key_env = preset.get("api_key_env")
-    if api_key_env:
-        api_key_env = typer.prompt("API key env var name", default=api_key_env)
-        typer.echo(f"  → Set the key later: export {api_key_env}=sk-...\n")
+    api_key = None
+    if preset.get("api_key_env"):
+        # Inline key, stored in the gitignored config.yaml. Empty input = skip.
+        api_key = typer.prompt(
+            "API key (saved into the gitignored config.yaml)",
+            default="",
+            hide_input=True,
+        ) or None
+        if api_key:
+            typer.echo("  → key stored in config.yaml\n")
+        else:
+            typer.echo("  → skipped (add one to config.yaml later)\n")
     else:
         typer.echo("  → No API key needed for this provider.\n")
 
-    cwd_name = Path.cwd().name
-    ns = typer.prompt("Default namespace", default=cwd_name)
+    ns = typer.prompt("Default namespace", default="me")
+    name = typer.prompt("Your name (what the agent calls you)", default="")
+    bio = typer.prompt("Bio (one-line intro about you)", default="")
 
     install_source = "local" if (Path.cwd() / ".lorekeep").exists() else "pypi"
 
@@ -390,8 +408,8 @@ def _interactive_init(p: dict) -> str:
             "backend": preset["backend"],
             "model": model,
             "api_base": preset["api_base"],
-            "api_key_env": api_key_env,
-            "api_key": None,
+            "api_key_env": None,
+            "api_key": api_key,
             "temperature": 0.0,
         },
         "compile": {"chunk_lines": 60},
@@ -399,7 +417,7 @@ def _interactive_init(p: dict) -> str:
         "install_source": install_source,
     }
     p["config"].write_text(yaml.dump(config, default_flow_style=False, sort_keys=False))
-    return ns
+    return ns, name, bio
 
 
 @app.command()
