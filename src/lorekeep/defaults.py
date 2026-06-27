@@ -77,7 +77,7 @@ PROVIDER_PRESETS: dict[str, dict] = {
         "backend": "openai",
         "model": "openai/gpt-4o-mini",
         "api_base": None,
-        "api_key_env": "OPENAI_API_KEY",
+        "api_key_env": None,
     },
 }
 

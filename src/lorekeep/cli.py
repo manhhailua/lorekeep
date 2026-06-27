@@ -346,8 +346,8 @@ def init(
         typer.echo("  (existing config/schema preserved)")
 
     # First file: the user's about.md (profile from onboarding) — replaces the
-    # generic welcome sample. Written only when raw/ is empty (fresh home).
-    if not any(p["raw"].rglob("*.md")):
+    # generic welcome sample. Written only on first init (fresh config + empty raw/).
+    if not config_existed and not any(p["raw"].rglob("*.md")):
         ns_dir = p["raw"] / ns
         ns_dir.mkdir(parents=True, exist_ok=True)
         about_md = (
