@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/manhhailua/lorekeep/compare/v0.1.12...v0.1.13) (2026-06-27)
+
+
+### Bug Fixes
+
+* enable minor bump for feat commits in pre-1.0 ([#43](https://github.com/manhhailua/lorekeep/issues/43)) ([0222182](https://github.com/manhhailua/lorekeep/commit/022218271fee1909c13f5f0495289f6977c6aaf1))
+
 ## [0.1.12](https://github.com/manhhailua/lorekeep/compare/v0.1.11...v0.1.12) (2026-06-27)
 
 
