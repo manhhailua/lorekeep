@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.1](https://github.com/manhhailua/lorekeep/compare/v0.2.0...v0.2.1) (2026-06-28)
+
+
+### Bug Fixes
+
+* repair daemon auto-compile provider construction and re-merge journals after standalone compile ([#48](https://github.com/manhhailua/lorekeep/issues/48)) ([fb05b29](https://github.com/manhhailua/lorekeep/commit/fb05b290c5c673cc36891790d62036b8b6f65c7e))
+
+
+### Documentation
+
+* align docs with shipped write tools, journals, resolve, and daemon ([#50](https://github.com/manhhailua/lorekeep/issues/50)) ([372e283](https://github.com/manhhailua/lorekeep/commit/372e283b475dfb6e7c8c995bf2b650dc2da02499))
+
 ## [0.2.0](https://github.com/manhhailua/lorekeep/compare/v0.1.13...v0.2.0) (2026-06-28)
 
 
