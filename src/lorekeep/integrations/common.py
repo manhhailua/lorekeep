@@ -2,15 +2,18 @@
 from __future__ import annotations
 
 
-def resolve_command(install_source: str | None) -> tuple[str, list[str]]:
-    """Return (command, args) to launch `lorekeep serve --transport stdio`."""
-    serve_args = ["serve", "--transport", "stdio"]
+def resolve_command(install_source: str | None, subcommand: list[str] | None = None) -> tuple[str, list[str]]:
+    """Return (command, args) to launch a lorekeep subcommand.
+
+    Defaults to ``serve --transport stdio``.  Pass ``subcommand`` for others
+    (e.g. ``["hook"]``).
+    """
+    cmd_args = subcommand or ["serve", "--transport", "stdio"]
     if not install_source or install_source == "pypi":
-        return ("uvx", ["lorekeep", *serve_args])
+        return ("uvx", ["lorekeep", *cmd_args])
     if install_source == "local":
-        return ("lorekeep", serve_args)
-    # anything else (git+URL, local path) -> uvx --from <source>
-    return ("uvx", ["--from", install_source, "lorekeep", *serve_args])
+        return ("lorekeep", cmd_args)
+    return ("uvx", ["--from", install_source, "lorekeep", *cmd_args])
 
 
 def agent_memory_snippet() -> str:

@@ -63,6 +63,47 @@ def version() -> None:
     typer.echo(f"lorekeep {__version__}")
 
 
+@app.command(hidden=True)
+def hook() -> None:
+    """SessionEnd hook: quick-import Claude memory files to raw/.
+
+    Designed to be registered as a Claude Code SessionEnd hook.
+    Reads hook JSON from stdin (transcript_path), imports memory files,
+    and lets the daemon pick up the raw/ change for compile.
+    """
+    import sys
+
+    session_dir = None
+    try:
+        raw_stdin = sys.stdin.read()
+        if raw_stdin.strip():
+            data = json.loads(raw_stdin)
+            transcript_path = data.get("transcript_path", "")
+            if transcript_path:
+                session_dir = Path(transcript_path).expanduser().parent
+    except Exception:
+        pass
+
+    if session_dir is None:
+        try:
+            from lorekeep.importer.claude import find_current_session
+            session_dir = find_current_session()
+        except Exception:
+            return
+
+    if session_dir is None or not (session_dir / "memory").is_dir():
+        return
+
+    p = resolve_paths()
+    try:
+        from lorekeep.importer.claude import import_memories
+        written = import_memories(session_dir, p["raw"], "claude-memory")
+        if written:
+            typer.echo(f"lorekeep: imported {len(written)} memory file(s)")
+    except Exception:
+        pass
+
+
 @app.command()
 def compile() -> None:
     """Compile raw/ into graph/facts.jsonl."""
@@ -239,6 +280,7 @@ def mcp_add(
     p = resolve_paths()
     config = load_config(p["config"])
     command, args = resolve_command(config.install_source)
+    hook_cmd, hook_args = resolve_command(config.install_source, ["hook"])
 
     target = Path.cwd() if scope == "project" else Path.home()
     writers = _agent_writers()
@@ -247,6 +289,9 @@ def mcp_add(
         raise typer.Exit(code=1)
     written = writers[agent].write_config(target, command, args, ns)
     typer.echo(f"wrote {agent} config -> {written}")
+    if agent in ("claude", "cursor") and hasattr(writers[agent], "write_hook"):
+        hook_path = writers[agent].write_hook(target, hook_cmd, hook_args)
+        typer.echo(f"wrote session-end hook -> {hook_path}")
     typer.echo("\n" + agent_memory_snippet())
 
 
@@ -452,6 +497,7 @@ def _auto_wire_agents(p: dict, ns: str) -> None:
 
     config = load_config(p["config"])
     command, args = resolve_command(config.install_source)
+    hook_cmd, hook_args = resolve_command(config.install_source, ["hook"])
 
     writers = _agent_writers()
     target = Path.cwd()
@@ -464,6 +510,9 @@ def _auto_wire_agents(p: dict, ns: str) -> None:
         try:
             written = writer.write_config(target, command, args, ns)
             typer.echo(f"  wired {agent_name} -> {written}")
+            if agent_name in ("claude", "cursor") and hasattr(writer, "write_hook"):
+                hook_path = writer.write_hook(target, hook_cmd, hook_args)
+                typer.echo(f"  hooked {agent_name} session-end -> {hook_path}")
         except Exception as exc:
             typer.echo(f"  {agent_name}: failed ({exc})")
 
