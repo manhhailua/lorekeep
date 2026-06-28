@@ -27,11 +27,9 @@ The serve chain loads `facts.jsonl` once and exposes it to coding agents over MC
 
 Every read tool is auto-scoped by `allowed_ns`. See [permission](permission.md) and [temporal](temporal.md) for the filtering these tools apply.
 
-## Write tools (5 tools, journal-based) [planned]
+## Write tools (5 tools, journal-based)
 
-> **Status: planned (phase 2).** These 5 write tools are target architecture. Current v1 exposes only the 8 read tools above. Implementation tracked in [#15](https://github.com/manhhailua/lorekeep/issues/15).
-
-Write tools **will not mutate** `facts.jsonl` directly. They will append to `pending/<ns>/journal.jsonl`. Facts become visible after the next resolve pass (see [pipeline](pipeline.md)).
+Write tools **do not mutate** `facts.jsonl` directly. They append to `pending/<ns>/journal.jsonl`. Facts become visible after the next resolve pass (see [pipeline](pipeline.md)).
 
 | Tool | Purpose | Confidence |
 |---|---|---|
@@ -86,7 +84,7 @@ MCP server lazy-reloads on next query → fact is now searchable
 
 ## Coding-agent integration
 
-`lorekeep mcp add --agent {claude|cursor|codex} [--scope project|user] [--ns <ns>]` writes the correct config and prints an agent-memory snippet to paste into `CLAUDE.md` / `.cursorrules` / `AGENTS.md`.
+`lorekeep mcp add --agent {claude|cursor|codex|opencode} [--scope project|user] [--ns <ns>]` writes the correct config and prints an agent-memory snippet to paste into `CLAUDE.md` / `.cursorrules` / `AGENTS.md`.
 
 > **Install source.** The snippets use `uvx lorekeep`, which assumes the package is on PyPI. `mcp add` detects `install_source` from `.lorekeep/config.yaml` so the emitted config matches the deployment (PyPI `uvx`, `git+https`, or a local `uv tool install .`).
 

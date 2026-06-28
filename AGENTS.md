@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Lorekeep compiles a team's raw markdown docs into a **temporal knowledge graph** (`facts.jsonl`) and exposes it **read-only** to coding agents (Claude Code, Cursor, Codex) over MCP, with per-namespace permission. The defining constraint: **there is no runtime write path.** A curator compiles offline; agents only read. Knowledge is processed once at compile time, not re-RAG'd per query.
+Lorekeep compiles a team's raw markdown docs into a **temporal knowledge graph** (`facts.jsonl`) and exposes it to coding agents (Claude Code, Cursor, Codex, opencode) over MCP, with per-namespace permission. Agents read facts through 8 read tools and propose new facts through 5 journal-based write tools (confidence-gated, merged on resolve). Knowledge is processed once at compile time, not re-RAG'd per query.
 
 ## Commands
 
@@ -28,8 +28,8 @@ uv run lorekeep <command>                    # run the CLI in dev mode
 | `compile` | `raw/*.md` → `graph/facts.jsonl` + `manifest.json` (runs the LLM pipeline) |
 | `check` | Validate compiled graph loads, no dangling edges (exit 1 on failure) |
 | `eval` | Tier-1 construction P/R/F1 vs gold corpus + structure metrics |
-| `serve [--transport stdio\|http]` | Run the read-only MCP server |
-| `mcp add --agent claude\|cursor\|codex --ns NS` | Write agent MCP config (`.mcp.json`) |
+| `serve [--transport stdio\|http]` | Run the MCP server (8 read + 5 write tools) |
+| `mcp add --agent claude\|cursor\|codex\|opencode --ns NS` | Write agent MCP config |
 | `import --from claude\|cursor` | Import agent sessions into `raw/` (claude: quick+deep; cursor: deep-only) |
 | `doctor` | Verify install: graph loads, schema valid, a tool responds |
 | `backup [--init <remote-url>]` | Commit + push `.lorekeep/` to your private backup git repo |
@@ -44,7 +44,7 @@ COMPILE (offline, curator):  raw/<ns>/*.md → ingest → extract(LLM) → resol
 SERVE   (runtime, per device): facts.jsonl → GraphStore → ScopedGraph(ns) → MCP → agent
 ```
 
-These never overlap. `compile` mutates `facts.jsonl`; `serve` reads it and lazily reloads on mtime change — there is no live write API.
+`compile` mutates `facts.jsonl`; `serve` reads it and lazily reloads on mtime change. Write tools (propose_fact, link_facts, etc.) append to `pending/` journals; resolve merges them into the graph.
 
 ### Compile pipeline (`src/lorekeep/compile/`, orchestrated by `pipeline.py`)
 `ingest` chunks markdown with `path:line` provenance → `extract` calls the LLM provider for schema-constrained nodes/edges/aliases (per-chunk SHA-256 hash cache → unchanged chunks return cached output, giving byte-stable recompiles) → `resolve` collapses alias variants to canonical entities and quarantines invalid facts → `writer` emits **sorted** `facts.jsonl` + `manifest.json`. Failures are skip-and-log (partial compile is valid); errors/quarantine land in the manifest.
@@ -57,7 +57,7 @@ Pydantic, all `frozen=True`, `extra="forbid"`. `Node` / `Edge` are the two `kind
 - **`perm/ns.py` `ScopedGraph`** — the **single permission chokepoint**. Wraps a `GraphStore` and filters *every* query. Deny-by-default: `effective_ns = allowed ∪ {public}`; a node is visible iff `ns ∩ effective_ns ≠ ∅`; an edge iff **both** endpoints visible **and** `edge.ns ∩ effective_ns ≠ ∅` (an edge never leaks a neighbor the caller can't see). **Any new query path must go through `ScopedGraph`, not `GraphStore` directly.**
 
 ### Serve (`mcp_server.py`)
-`FastMCP` with 8 read-only tools (`search`, `get_node`, `neighbors`, `at_time`, `history`, `changes`, `list_namespaces`, `schema`). Module-global `ScopedGraph` is set by `configure()`; `_require()` lazy-reloads when `facts.jsonl` mtime changes (so `compile` is visible without reconnecting). Tools are plain functions registered with `@mcp.tool()` but stay directly callable — **tests invoke them directly, no MCP transport**. The writer uses atomic `os.replace` so lazy-reload never reads a half-written file.
+`FastMCP` with 8 read tools (`search`, `get_node`, `neighbors`, `at_time`, `history`, `changes`, `list_namespaces`, `schema`) and 5 write tools (`propose_fact`, `link_facts`, `flag_contradiction`, `update_fact`, `suggest_improvement`). Module-global `ScopedGraph` is set by `configure()`; `_require()` lazy-reloads when `facts.jsonl` mtime changes (so `compile` is visible without reconnecting). Tools are plain functions registered with `@mcp.tool()` but stay directly callable — **tests invoke them directly, no MCP transport**. The writer uses atomic `os.replace` so lazy-reload never reads a half-written file.
 
 ### Path resolution (`paths.py`)
 Pure (no I/O), 4-tier precedence high→low: explicit `LOREKEEP_RAW/OUT/CACHE/SCHEMA/CONFIG` env → `LOREKEEP_HOME` → **dev mode** (`.lorekeep/` present in CWD, or `LOREKEEP_DEV=1`; auto-detected in a source checkout) — all data lives under `cwd/.lorekeep/` (`config.yaml`, `schema.json`, `raw/`, `graph/`, `cache.json`), mirroring the `LOREKEEP_HOME` layout → XDG (`platformdirs`). Running `uv run lorekeep …` from the repo uses the repo's own `.lorekeep/` data home with zero migration.

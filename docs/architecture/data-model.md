@@ -13,7 +13,7 @@ lorekeep/
 │   ├── facts.jsonl             # THE store: nodes + edges + temporal + ns, 1 fact/line
 │   ├── manifest.json           # provenance: raw→fact map, chunk hashes, run id, errors, quarantine
 │   └── schema.json             # node/edge type definitions
-├── pending/                    # agent-proposed facts (planned phase 2)
+├── pending/                    # agent-proposed facts (journals)
 │   ├── <ns>/journal.jsonl      # per-namespace append-only journal
 │   └── <agent>/journal.jsonl   # per-agent append-only journal
 ├── .lorekeep/                  # LOCAL only (gitignored)
@@ -23,8 +23,8 @@ lorekeep/
     ├── compile/{ingest,extract,resolve,writer}.py
     ├── store/{graph,fts}.py
     ├── perm/ns.py
-    ├── journal.py              # journal append + load [planned phase 2]
-    ├── agent.py                # autonomous agent CLI [planned phase 2]
+    ├── journal.py              # journal append + load
+    ├── agent.py                # autonomous agent CLI
     ├── integrations/{claude_code,cursor,codex}.py
     ├── mcp_server.py
     └── cli.py
@@ -96,8 +96,8 @@ Each component has one responsibility, a clear input/output interface, and is te
 | `compile/extract` | chunk + schema | candidate facts | **The compiler.** LLM-driven, provider-pluggable. Constrained to `schema.json`. Idempotent per chunk via hash cache. |
 | `compile/resolve` | candidate facts + journals | clean facts | Entity dedup (alias → canonical id), validate edge endpoints exist, enforce ns-consistency, quarantine malformed facts. Merges from three sources (raw/ > import > agent-propose). |
 | `compile/writer` | clean facts | `facts.jsonl` + `manifest.json` | **Deterministic emit**: facts sorted by `(kind, type, id)`, sorted JSON keys, stable formatting ⇒ byte-identical output for unchanged input ⇒ clean git diffs. |
-| `journal` [planned] | fact + agent + confidence | append to `pending/` journal | Append-only JSONL writer. Agent-proposed facts land here before resolve. |
-| `agent` [planned] | — | — | Daemon: watch raw/ → auto-compile, periodic resolve, nightly lint, auto-import, suggest. CLI: `agent lint`, `agent ingest`, `agent evolve`. |
+| `journal` | fact + agent + confidence | append to `pending/` journal | Append-only JSONL writer. Agent-proposed facts land here before resolve. |
+| `agent` | — | — | Daemon: watch raw/ → auto-compile, periodic resolve, nightly lint, auto-import, suggest. CLI: `agent lint`, `agent ingest`, `agent evolve`. |
 | `store/graph` | `facts.jsonl` | networkx `MultiDiGraph` (temporal) | Load + query API: `get_node`, `neighbors`, `snapshot`, `history`, `changes`. Pure functions; no I/O after load. |
 | `perm/ns` | `allowed_ns` (set) | filter / guard | **Single permission chokepoint.** Every store query passes through here. |
 | `store/fts` (optional) | `facts.jsonl` | FTS cache | FTS5 over node text/props for text search. Local, gitignored, rebuilt from `facts.jsonl`. Falls back to in-memory scan if absent. |

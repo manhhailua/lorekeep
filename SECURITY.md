@@ -1,14 +1,16 @@
 # Security policy — Lorekeep
 
 Lorekeep compiles team documents into a temporal knowledge graph and serves it
-read-only to AI coding agents over MCP. This document describes the threat
+to AI coding agents over MCP. This document describes the threat
 model and the configuration decisions that keep a deployment safe.
 
 ## Trust model
 
-- **Compile-only, single writer.** The graph (`graph/facts.jsonl`) is produced by
-  `lorekeep compile` and never mutated by the server. Agents read via MCP; there is
-  no write API. No concurrency control is needed because readers are read-only.
+- **Compile + journal-based writes.** The graph (`graph/facts.jsonl`) is produced by
+  `lorekeep compile` and never mutated directly by the server. Agents read via MCP
+  and propose facts through journal-based write tools that append to `pending/` —
+  facts enter the graph only after a resolve pass (confidence-gated). No concurrency
+  control is needed on the read path because `facts.jsonl` is replaced atomically.
 - **Per-process namespace scope.** An MCP server's visible data is fixed at startup
   by `LOREKEEP_NS` (comma-separated namespaces). Visibility is enforced by a single
   chokepoint, `ScopedGraph` (`src/lorekeep/perm/ns.py`), applied to **every** query.

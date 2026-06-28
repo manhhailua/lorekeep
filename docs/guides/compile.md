@@ -42,9 +42,7 @@ unchanged input yields a byte-identical file (extraction is cached under
 **What compile does not do:** compile processes only `raw/`. Agent-proposed
 facts in `pending/` journals are merged by `resolve` (see step 5).
 
-## 4. Resolve pending facts (manual) [planned]
-
-> **Planned for phase 2.** Resolve and daemon commands are not yet available. See [#15](https://github.com/manhhailua/lorekeep/issues/15).
+## 4. Resolve pending facts (manual)
 
 ```bash
 uv run lorekeep resolve
@@ -57,7 +55,7 @@ with review flag, low (<0.5) quarantine.
 Resolve also runs automatically: the daemon (`lorekeep agent watch`) resolves
 every 5 minutes or after 50 pending entries.
 
-## 5. Full pipeline (compile + resolve) [planned]
+## 5. Full pipeline (compile + resolve)
 
 ```bash
 uv run lorekeep compile && uv run lorekeep resolve
@@ -66,7 +64,7 @@ uv run lorekeep compile && uv run lorekeep resolve
 Or let the daemon handle it:
 
 ```bash
-uv run lorekeep agent watch    # watches raw/ + pending/ → auto-compile + resolve [planned]
+uv run lorekeep agent watch    # watches raw/ + pending/ → auto-compile + resolve
 ```
 
 ## 6. Evaluate construction quality
@@ -88,12 +86,12 @@ uv run lorekeep check
 
 Exits non-zero if the graph has dangling edges.
 
-## How agents contribute knowledge [planned]
+## How agents contribute knowledge
 
-Agents will propose facts at runtime through MCP write tools (see [serve.md](serve.md)).
+Agents propose facts at runtime through MCP write tools (see [serve.md](serve.md)).
 These are appended to `pending/<ns>/journal.jsonl` at **zero LLM cost** — the
 agent already ran the LLM for the conversation. Facts become searchable after
-the next resolve. **Write tools and resolve are planned for phase 2.**
+the next resolve.
 
 ## Next: serve to agents
 

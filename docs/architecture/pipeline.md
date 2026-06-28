@@ -42,11 +42,9 @@ raw/<ns>/*.md ──► ingest ──► extract(LLM) ──► candidate facts 
 
 `raw/` is populated by hand or by `lorekeep import`, which converts a coding agent's sessions (Claude Code, Cursor) into markdown; see the [import guide](../guides/import.md).
 
-## Path 2: agent propose (runtime, zero LLM cost) [planned]
+## Path 2: agent propose (runtime, zero LLM cost)
 
-> **Status: planned (phase 2).** MCP write tools and journal-based agent proposals are target architecture. Current v1 has no runtime write path. See [#15](https://github.com/manhhailua/lorekeep/issues/15).
-
-Coding agents will propose facts during conversation through MCP write tools. Each proposal is appended to `pending/<ns>/journal.jsonl` as a journal entry.
+Coding agents propose facts during conversation through MCP write tools. Each proposal is appended to `pending/<ns>/journal.jsonl` as a journal entry.
 
 ```python
 # Agent-side (Claude Code): agent discovers checkout service during conversation

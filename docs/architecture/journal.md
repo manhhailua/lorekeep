@@ -1,7 +1,5 @@
 # Journal: agent-driven knowledge accumulation
 
-> **Status: planned (phase 2).** The journal system, MCP write tools, and periodic resolve described here are target architecture. Current v1 is compile-only with 8 read-only MCP tools. Implementation tracked in [#15](https://github.com/manhhailua/lorekeep/issues/15).
-
 The journal is the mechanism by which coding agents contribute knowledge to Lorekeep **at runtime, at zero marginal LLM cost**. Agents propose facts during conversation; the journal captures them as append-only JSONL; a periodic resolve pass merges validated facts into `facts.jsonl`.
 
 ## Why journals?

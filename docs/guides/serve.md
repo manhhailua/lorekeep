@@ -48,12 +48,10 @@ LOREKEEP_HOME=~/kb-work uvx lorekeep compile
 `list_namespaces`, `schema`. Results are filtered to `LOREKEEP_NS`; cross-namespace
 edges are hidden unless both endpoints are visible.
 
-## Write tools (5 tools, journal-based) [planned]
+## Write tools (5 tools, journal-based)
 
-> **Planned for phase 2.** These write tools are not yet available. Current v1 exposes 8 read tools. See [#15](https://github.com/manhhailua/lorekeep/issues/15).
-
-When implemented, agents will contribute knowledge during conversation at **zero LLM cost**. Facts
-will be appended to `pending/` journals and merged into the graph on the next
+Agents contribute knowledge during conversation at **zero LLM cost**. Facts
+are appended to `pending/` journals and merged into the graph on the next
 resolve pass.
 
 | Tool | Purpose | Confidence |
