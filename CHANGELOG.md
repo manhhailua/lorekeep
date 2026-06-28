@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/manhhailua/lorekeep/compare/v0.1.13...v0.2.0) (2026-06-28)
+
+
+### Features
+
+* auto-detect coding agents during init and wire MCP automatically ([#46](https://github.com/manhhailua/lorekeep/issues/46)) ([c529974](https://github.com/manhhailua/lorekeep/commit/c5299746ce12d5d12a3511a990d9711d357b0277))
+
 ## [0.1.13](https://github.com/manhhailua/lorekeep/compare/v0.1.12...v0.1.13) (2026-06-27)
 
 
