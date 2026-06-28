@@ -6,6 +6,7 @@
 ### Bug Fixes
 
 * repair daemon auto-compile provider construction and re-merge journals after standalone compile ([#48](https://github.com/manhhailua/lorekeep/issues/48)) ([fb05b29](https://github.com/manhhailua/lorekeep/commit/fb05b290c5c673cc36891790d62036b8b6f65c7e))
+* resolve doc contradictions and false cadence claims ([#53](https://github.com/manhhailua/lorekeep/issues/53)) ([10fc794](https://github.com/manhhailua/lorekeep/commit/10fc79406b02d1fa5735274b3dd89c62653ed3ba))
 
 
 ### Documentation
