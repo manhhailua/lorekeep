@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/manhhailua/lorekeep/compare/v0.3.0...v0.3.1) (2026-06-28)
+
+
+### Bug Fixes
+
+* add manifest dedup to deep-mode session import ([#61](https://github.com/manhhailua/lorekeep/issues/61)) ([a9a074f](https://github.com/manhhailua/lorekeep/commit/a9a074f901c9a8f8e4cd2e3f906fdf4be7a773d6))
+
 ## [0.3.0](https://github.com/manhhailua/lorekeep/compare/v0.2.1...v0.3.0) (2026-06-28)
 
 
