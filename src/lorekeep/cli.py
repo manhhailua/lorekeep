@@ -319,8 +319,12 @@ def init(
         False, "--yes", "-y",
         help="Skip interactive prompts, use defaults",
     ),
+    watch: bool = typer.Option(
+        True, "--watch/--no-watch",
+        help="Start the daemon (agent watch) in background after setup",
+    ),
 ) -> None:
-    """Bootstrap the data home: config + schema + raw/graph dirs."""
+    """Bootstrap the data home, wire agents, import sessions, compile, and start daemon."""
     p = resolve_paths()
     created = []
     p["config"].parent.mkdir(parents=True, exist_ok=True)
@@ -348,6 +352,7 @@ def init(
 
     p["raw"].mkdir(parents=True, exist_ok=True)
     p["out"].mkdir(parents=True, exist_ok=True)
+    p["pending"].mkdir(parents=True, exist_ok=True)
 
     typer.echo(f"home ready: config={p['config']}")
     typer.echo(f"  schema={p['schema']}  raw={p['raw']}  graph={p['out']}")
@@ -368,12 +373,15 @@ def init(
         (ns_dir / "about.md").write_text(about_md)
         typer.echo(f"  wrote: {ns_dir / 'about.md'}")
 
-    # Auto-detect and wire coding agents (active session or installed).
+    # --- One-click chain: wire → import → compile → daemon -----------------
     if not config_existed:
         _auto_wire_agents(p, ns)
-        typer.echo("\nNext steps:")
-        typer.echo("  1. Compile:           uvx lorekeep compile   (or LOREKEEP_PROVIDER=fake)")
-        typer.echo("  2. More agents:       uvx lorekeep mcp add --agent <claude|cursor|codex|opencode>")
+        _auto_import_and_compile(p)
+        if watch:
+            _start_daemon(p)
+        typer.echo("\nRestart your agent → lorekeep tools are available.")
+    else:
+        typer.echo("\nAlready initialized. Use `lorekeep compile` or `lorekeep agent watch`.")
 
 
 def _interactive_init(p: dict) -> tuple[str, str, str]:
@@ -476,6 +484,85 @@ def _agent_writers() -> dict:
         "codex": codex,
         "opencode": opencode,
     }
+
+
+def _auto_import_and_compile(p: dict) -> None:
+    """Quick-import Claude memory files, then compile if provider is available."""
+    imported = 0
+
+    # --- Quick import: Claude memory files (zero LLM cost) ----------------
+    try:
+        from lorekeep.importer.claude import find_current_session, import_memories
+        session_dir = find_current_session()
+        if session_dir is not None and (session_dir / "memory").is_dir():
+            written = import_memories(session_dir, p["raw"], "claude-memory")
+            imported = len(written)
+            if imported:
+                typer.echo(f"  imported {imported} memory file(s) from Claude session")
+    except Exception:
+        pass
+
+    # --- Compile (if provider is usable) ----------------------------------
+    schema = load_schema(p["schema"])
+    config = load_config(p["config"])
+
+    has_key = (
+        os.environ.get("LOREKEEP_PROVIDER") == "fake"
+        or (config.provider.api_key_env and os.environ.get(config.provider.api_key_env))
+        or config.provider.api_key
+    )
+
+    if not has_key:
+        if imported:
+            typer.echo("  memory files imported to raw/ — compile pending (add API key to config.yaml)")
+        else:
+            typer.echo("  graph empty — run `lorekeep compile` after adding docs or importing sessions")
+        return
+
+    try:
+        provider = _make_provider(config)
+        manifest = compile_graph(
+            raw_root=p["raw"], out_dir=p["out"], schema=schema,
+            provider=provider, cache_path=p["cache"],
+            chunk_lines=config.compile.chunk_lines,
+        )
+        pending_dir = p.get("pending")
+        if pending_dir and pending_dir.exists():
+            _do_auto_resolve(p["out"], pending_dir)
+        typer.echo(f"  compiled: {manifest.node_count} nodes, {manifest.edge_count} edges")
+    except Exception as exc:
+        typer.echo(f"  compile skipped: {exc}")
+
+
+def _start_daemon(p: dict) -> None:
+    """Start agent watch as a background process with PID + log files."""
+    import subprocess
+    import sys
+
+    pid_path = p["home"] / "agent.pid"
+    log_path = p["home"] / "agent.log"
+
+    # Check if already running
+    if pid_path.exists():
+        old_pid = pid_path.read_text().strip()
+        try:
+            os.kill(int(old_pid), 0)
+            typer.echo(f"  daemon already running (pid={old_pid})")
+            return
+        except (ProcessLookupError, ValueError):
+            pass
+
+    cmd = [sys.executable, "-m", "lorekeep.cli", "agent", "watch", "--interval", "60"]
+    log_file = open(log_path, "a")
+    proc = subprocess.Popen(
+        cmd,
+        stdout=log_file,
+        stderr=subprocess.STDOUT,
+        stdin=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    pid_path.write_text(str(proc.pid))
+    typer.echo(f"  daemon started (pid={proc.pid}, log={log_path})")
 
 
 @app.command()
