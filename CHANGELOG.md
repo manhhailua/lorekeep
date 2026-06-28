@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/manhhailua/lorekeep/compare/v0.3.1...v0.4.0) (2026-06-28)
+
+
+### Features
+
+* trigger memory import on Claude session end via SessionEnd hook ([#64](https://github.com/manhhailua/lorekeep/issues/64)) ([5914663](https://github.com/manhhailua/lorekeep/commit/5914663a5c02f76e1085a1f9d663066979396d77))
+
 ## [0.3.1](https://github.com/manhhailua/lorekeep/compare/v0.3.0...v0.3.1) (2026-06-28)
 
 
