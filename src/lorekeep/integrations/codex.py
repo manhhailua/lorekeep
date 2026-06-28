@@ -1,11 +1,7 @@
-"""Codex MCP config writer (config.toml [mcp_servers.lorekeep]).
-
-Idempotent: re-running replaces the existing [mcp_servers.lorekeep] block instead
-of appending a duplicate. Values are escaped so a stray quote/backslash in the
-namespace or command can't break the generated TOML.
-"""
+"""Codex MCP config writer (config.toml) + Stop hook writer (hooks.json)."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 _HEADER = "[mcp_servers.lorekeep]"
@@ -53,4 +49,34 @@ def write_config(target_dir: Path, command: str, args: list[str], ns: str | None
         new_text = "\n".join(rebuilt) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(new_text)
+    return path
+
+
+def write_hook(target_dir: Path, command: str, args: list[str]) -> Path:
+    """Write a Stop hook to .codex/hooks.json.
+
+    Codex fires Stop after every turn. The lorekeep hook command is
+    idempotent (manifest dedup) — zero cost if memories unchanged.
+    """
+    cmd_str = " ".join([command, *args])
+    path = Path(target_dir) / ".codex" / "hooks.json"
+    existing = {}
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    hooks = existing.get("hooks", {})
+    hooks["Stop"] = [{
+        "hooks": [{
+            "type": "command",
+            "command": cmd_str,
+            "timeout": 30,
+        }]
+    }]
+    existing["hooks"] = hooks
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(existing, indent=2))
     return path

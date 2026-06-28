@@ -65,43 +65,34 @@ def version() -> None:
 
 @app.command(hidden=True)
 def hook() -> None:
-    """SessionEnd hook: quick-import Claude memory files to raw/.
+    """Session lifecycle hook: quick-import memories from all agents.
 
-    Designed to be registered as a Claude Code SessionEnd hook.
-    Reads hook JSON from stdin (transcript_path), imports memory files,
-    and lets the daemon pick up the raw/ change for compile.
+    Agent-agnostic — tries Claude and Codex memory imports (idempotent
+    via manifest). Each is a no-op if nothing changed. Daemon picks up
+    raw/ changes for compile.
     """
-    import sys
-
-    session_dir = None
-    try:
-        raw_stdin = sys.stdin.read()
-        if raw_stdin.strip():
-            data = json.loads(raw_stdin)
-            transcript_path = data.get("transcript_path", "")
-            if transcript_path:
-                session_dir = Path(transcript_path).expanduser().parent
-    except Exception:
-        pass
-
-    if session_dir is None:
-        try:
-            from lorekeep.importer.claude import find_current_session
-            session_dir = find_current_session()
-        except Exception:
-            return
-
-    if session_dir is None or not (session_dir / "memory").is_dir():
-        return
-
     p = resolve_paths()
+    total = 0
+
     try:
-        from lorekeep.importer.claude import import_memories
-        written = import_memories(session_dir, p["raw"], "claude-memory")
-        if written:
-            typer.echo(f"lorekeep: imported {len(written)} memory file(s)")
+        from lorekeep.importer.claude import find_current_session as find_claude
+        from lorekeep.importer.claude import import_memories as import_claude_mem
+        session_dir = find_claude()
+        if session_dir and (session_dir / "memory").is_dir():
+            written = import_claude_mem(session_dir, p["raw"], "claude-memory")
+            total += len(written)
     except Exception:
         pass
+
+    try:
+        from lorekeep.importer.codex import import_memories as import_codex_mem
+        written = import_codex_mem(p["raw"], "codex-memory")
+        total += len(written)
+    except Exception:
+        pass
+
+    if total:
+        typer.echo(f"lorekeep: imported {total} memory file(s)")
 
 
 @app.command()
@@ -289,7 +280,7 @@ def mcp_add(
         raise typer.Exit(code=1)
     written = writers[agent].write_config(target, command, args, ns)
     typer.echo(f"wrote {agent} config -> {written}")
-    if agent in ("claude", "cursor") and hasattr(writers[agent], "write_hook"):
+    if hasattr(writers[agent], "write_hook"):
         hook_path = writers[agent].write_hook(target, hook_cmd, hook_args)
         typer.echo(f"wrote session-end hook -> {hook_path}")
     typer.echo("\n" + agent_memory_snippet())
@@ -510,7 +501,7 @@ def _auto_wire_agents(p: dict, ns: str) -> None:
         try:
             written = writer.write_config(target, command, args, ns)
             typer.echo(f"  wired {agent_name} -> {written}")
-            if agent_name in ("claude", "cursor") and hasattr(writer, "write_hook"):
+            if hasattr(writer, "write_hook"):
                 hook_path = writer.write_hook(target, hook_cmd, hook_args)
                 typer.echo(f"  hooked {agent_name} session-end -> {hook_path}")
         except Exception as exc:
@@ -663,17 +654,79 @@ def import_cmd(
     """Import knowledge from an agent's sessions into raw/.
 
     Sources:
-      claude   Claude Code sessions. --quick copies memory/*.md only (no LLM);
-               default (deep) adds LLM-summarized transcript analysis.
-      cursor   Cursor composer conversations (GLOBAL state.vscdb). Deep-only --
-               --quick is rejected (Cursor has no curated memory files).
+      claude    Claude Code sessions. --quick copies memory/*.md only (no LLM);
+                default (deep) adds LLM-summarized transcript analysis.
+      cursor    Cursor composer conversations (GLOBAL state.vscdb). Deep-only.
+      codex     Codex CLI rollout transcripts ($CODEX_HOME/sessions/).
+                --quick copies memories/*.md only; default (deep) summarizes.
+      opencode  opencode sessions (SQLite DB). Deep-only — no memory dir.
     """
-    if from_source not in ("claude", "cursor"):
-        typer.echo(f"unknown source: {from_source} (claude | cursor)")
+    if from_source not in ("claude", "cursor", "codex", "opencode"):
+        typer.echo(f"unknown source: {from_source} (claude | cursor | codex | opencode)")
         raise typer.Exit(code=1)
 
     p = resolve_paths()
     config = load_config(p["config"])
+
+    # --- Codex: rollout JSONL transcripts, quick + deep --------------------
+    if from_source == "codex":
+        from lorekeep.importer.codex import find_current_session as find_codex, import_codex
+
+        rollout_path = Path(session_path).expanduser() if session_path else None
+        if rollout_path is None:
+            rollout_path = find_codex()
+        if rollout_path is None and not quick:
+            typer.echo("error: no Codex session found for this project. "
+                       "Run Codex CLI here first, or pass --session-path.")
+            raise typer.Exit(code=1)
+
+        result = import_codex(
+            raw_root=p["raw"],
+            rollout_path=rollout_path,
+            quick=quick,
+            memory_ns=memory_ns,
+            session_ns=session_ns or "codex-session",
+            provider=None if quick else _make_import_provider(config),
+            dry_run=dry_run,
+        )
+        mem_count = len(result.get("memory", []))
+        ses_count = len(result.get("session", []))
+        if dry_run:
+            typer.echo(f"dry-run: would import {mem_count} memories, {ses_count} session files")
+        else:
+            typer.echo(f"imported: {mem_count} memories -> raw/{memory_ns}/, "
+                       f"{ses_count} session files -> raw/{session_ns or 'codex-session'}/")
+        return
+
+    # --- opencode: SQLite DB, deep-only ------------------------------------
+    if from_source == "opencode":
+        if quick:
+            typer.echo("error: opencode import is deep-only (--quick not supported)")
+            raise typer.Exit(code=1)
+
+        from lorekeep.importer.opencode import find_current_session as find_oc, import_opencode
+
+        sid = session_path or find_oc()
+        if sid is None:
+            typer.echo("error: no opencode session found for this project. "
+                       "Run opencode here first, or pass --session-path <session-id>.")
+            raise typer.Exit(code=1)
+
+        ns = session_ns or "opencode-session"
+        result = import_opencode(
+            raw_root=p["raw"],
+            session_id=sid,
+            session_ns=ns,
+            provider=_make_import_provider(config),
+            dry_run=dry_run,
+        )
+        ses_count = len(result.get("session", []))
+        if dry_run:
+            typer.echo(f"dry-run: would import {ses_count} opencode session files")
+        else:
+            typer.echo(f"imported: {ses_count} session files -> raw/{ns}/")
+            typer.echo("next: lorekeep compile")
+        return
 
     # --- Cursor: global composer conversations, deep-only ------------------
     if from_source == "cursor":

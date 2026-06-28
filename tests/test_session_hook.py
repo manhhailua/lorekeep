@@ -16,8 +16,8 @@ runner = CliRunner()
 # ── lorekeep hook command ─────────────────────────────────────────────────
 
 
-def test_hook_imports_memory_from_stdin(tmp_path: Path, monkeypatch):
-    """lorekeep hook reads transcript_path from stdin, imports memory files."""
+def test_hook_imports_claude_memory(tmp_path: Path, monkeypatch):
+    """lorekeep hook auto-detects Claude session and imports memory files."""
     home = tmp_path / "home"
     home.mkdir()
     (home / "raw").mkdir()
@@ -28,13 +28,11 @@ def test_hook_imports_memory_from_stdin(tmp_path: Path, monkeypatch):
     session_dir = tmp_path / "session"
     (session_dir / "memory").mkdir(parents=True)
     (session_dir / "memory" / "note.md").write_text("# Important\nKnowledge.\n")
-    transcript = session_dir / "transcript.jsonl"
-    transcript.write_text("{}")
 
     monkeypatch.setenv("LOREKEEP_HOME", str(home))
+    monkeypatch.setattr("lorekeep.importer.claude.find_current_session", lambda: session_dir)
 
-    hook_input = json.dumps({"transcript_path": str(transcript)})
-    result = runner.invoke(app, ["hook"], input=hook_input)
+    result = runner.invoke(app, ["hook"])
     assert result.exit_code == 0, result.stdout
 
     imported = home / "raw" / "claude-memory" / "note.md"
@@ -49,11 +47,10 @@ def test_hook_no_session_silent_exit(tmp_path: Path, monkeypatch):
     (home / "raw").mkdir()
     (home / "graph").mkdir()
     monkeypatch.setenv("LOREKEEP_HOME", str(home))
-    monkeypatch.setattr(
-        "lorekeep.importer.claude.find_current_session", lambda: None
-    )
+    monkeypatch.setattr("lorekeep.importer.claude.find_current_session", lambda: None)
+    monkeypatch.setattr("lorekeep.importer.codex.import_memories", lambda *a, **k: [])
 
-    result = runner.invoke(app, ["hook"], input="")
+    result = runner.invoke(app, ["hook"])
     assert result.exit_code == 0
 
 
@@ -66,11 +63,11 @@ def test_hook_no_memory_dir_silent_exit(tmp_path: Path, monkeypatch):
 
     session_dir = tmp_path / "session"
     session_dir.mkdir()
-    transcript = session_dir / "transcript.jsonl"
-    transcript.write_text("{}")
 
-    hook_input = json.dumps({"transcript_path": str(transcript)})
-    result = runner.invoke(app, ["hook"], input=hook_input)
+    monkeypatch.setattr("lorekeep.importer.claude.find_current_session", lambda: session_dir)
+    monkeypatch.setattr("lorekeep.importer.codex.import_memories", lambda *a, **k: [])
+
+    result = runner.invoke(app, ["hook"])
     assert result.exit_code == 0
 
 
@@ -86,14 +83,12 @@ def test_hook_idempotent(tmp_path: Path, monkeypatch):
     session_dir = tmp_path / "session"
     (session_dir / "memory").mkdir(parents=True)
     (session_dir / "memory" / "note.md").write_text("# Knowledge\n")
-    transcript = session_dir / "transcript.jsonl"
-    transcript.write_text("{}")
 
     monkeypatch.setenv("LOREKEEP_HOME", str(home))
+    monkeypatch.setattr("lorekeep.importer.claude.find_current_session", lambda: session_dir)
 
-    hook_input = json.dumps({"transcript_path": str(transcript)})
-    runner.invoke(app, ["hook"], input=hook_input)
-    result2 = runner.invoke(app, ["hook"], input=hook_input)
+    runner.invoke(app, ["hook"])
+    result2 = runner.invoke(app, ["hook"])
     assert result2.exit_code == 0
     assert "imported" not in result2.stdout.lower()
 
@@ -190,8 +185,8 @@ def test_mcp_add_writes_claude_hook(tmp_path: Path, monkeypatch):
     assert "SessionEnd" in data["hooks"]
 
 
-def test_mcp_add_opencode_no_hook(tmp_path: Path, monkeypatch):
-    """mcp add --agent opencode should NOT write a hook (no hook mechanism)."""
+def test_mcp_add_opencode_writes_hook(tmp_path: Path, monkeypatch):
+    """mcp add --agent opencode writes session.idle plugin."""
     home = tmp_path / "home"
     project = tmp_path / "project"
     project.mkdir()
@@ -204,7 +199,11 @@ def test_mcp_add_opencode_no_hook(tmp_path: Path, monkeypatch):
     result = runner.invoke(app, ["mcp", "add", "--agent", "opencode", "--ns", "backend"])
     assert result.exit_code == 0, result.stdout
 
-    assert not (project / ".claude" / "settings.json").exists()
+    plugin = project / ".opencode" / "plugins" / "lorekeep.ts"
+    assert plugin.exists()
+    content = plugin.read_text()
+    assert "session.idle" in content
+    assert "lorekeep hook" in content
 
 
 # ── Cursor hook ───────────────────────────────────────────────────────────
@@ -244,3 +243,57 @@ def test_mcp_add_cursor_hook(tmp_path: Path, monkeypatch):
     assert hooks_path.exists()
     data = json.loads(hooks_path.read_text())
     assert "sessionEnd" in data["hooks"]
+
+
+# ── Codex hook ────────────────────────────────────────────────────────────
+
+
+def test_write_codex_hook(tmp_path: Path):
+    """write_hook for Codex creates .codex/hooks.json with Stop event."""
+    from lorekeep.integrations.codex import write_hook as write_codex_hook
+
+    path = write_codex_hook(tmp_path, "uvx", ["lorekeep", "hook"])
+    assert path == tmp_path / ".codex" / "hooks.json"
+    assert path.exists()
+
+    data = json.loads(path.read_text())
+    hooks = data["hooks"]["Stop"]
+    assert len(hooks) == 1
+    handler = hooks[0]["hooks"][0]
+    assert handler["type"] == "command"
+    assert "lorekeep hook" in handler["command"]
+    assert handler["timeout"] == 30
+
+
+def test_mcp_add_codex_hook(tmp_path: Path, monkeypatch):
+    """mcp add --agent codex writes Stop hook."""
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    project.mkdir()
+    home.mkdir()
+    (home / "config.yaml").write_text("install_source: pypi\n")
+
+    monkeypatch.setenv("LOREKEEP_HOME", str(home))
+    monkeypatch.chdir(project)
+
+    result = runner.invoke(app, ["mcp", "add", "--agent", "codex", "--ns", "backend"])
+    assert result.exit_code == 0, result.stdout
+
+    hooks_path = project / ".codex" / "hooks.json"
+    assert hooks_path.exists()
+
+
+# ── opencode hook ─────────────────────────────────────────────────────────
+
+
+def test_write_opencode_hook(tmp_path: Path):
+    """write_hook for opencode creates .opencode/plugins/lorekeep.ts."""
+    from lorekeep.integrations.opencode import write_hook as write_oc_hook
+
+    path = write_oc_hook(tmp_path, "uvx", ["lorekeep", "hook"])
+    assert path == tmp_path / ".opencode" / "plugins" / "lorekeep.ts"
+    assert path.exists()
+
+    content = path.read_text()
+    assert "session.idle" in content
+    assert "uvx lorekeep hook" in content
