@@ -377,11 +377,16 @@ def init(
     if not config_existed:
         _auto_wire_agents(p, ns)
         _auto_import_and_compile(p)
-        if watch:
-            _start_daemon(p)
         typer.echo("\nRestart your agent → lorekeep tools are available.")
-    else:
-        typer.echo("\nAlready initialized. Use `lorekeep compile` or `lorekeep agent watch`.")
+
+    # Daemon: start on fresh init or revive if dead (regardless of config_existed)
+    if watch and _is_interactive():
+        _start_daemon(p)
+    elif watch and not _is_interactive():
+        typer.echo("\n  (skipped daemon start in non-interactive mode — run `lorekeep agent watch` manually)")
+
+    if config_existed:
+        typer.echo("\nAlready initialized.")
 
 
 def _interactive_init(p: dict) -> tuple[str, str, str]:
@@ -499,8 +504,9 @@ def _auto_import_and_compile(p: dict) -> None:
             imported = len(written)
             if imported:
                 typer.echo(f"  imported {imported} memory file(s) from Claude session")
-    except Exception:
-        pass
+    except Exception as exc:
+        if os.environ.get("LOREKEEP_DEBUG"):
+            typer.echo(f"  import error: {exc}")
 
     # --- Compile (if provider is usable) ----------------------------------
     schema = load_schema(p["schema"])
@@ -554,13 +560,16 @@ def _start_daemon(p: dict) -> None:
 
     cmd = [sys.executable, "-m", "lorekeep.cli", "agent", "watch", "--interval", "60"]
     log_file = open(log_path, "a")
-    proc = subprocess.Popen(
-        cmd,
-        stdout=log_file,
-        stderr=subprocess.STDOUT,
-        stdin=subprocess.DEVNULL,
-        start_new_session=True,
-    )
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    finally:
+        log_file.close()
     pid_path.write_text(str(proc.pid))
     typer.echo(f"  daemon started (pid={proc.pid}, log={log_path})")
 

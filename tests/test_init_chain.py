@@ -84,8 +84,9 @@ def test_init_imports_claude_memory(tmp_path: Path, monkeypatch):
 
 
 def test_init_starts_daemon(tmp_path: Path, monkeypatch):
-    """init --watch should spawn agent watch as a background process."""
+    """init --watch in interactive mode should spawn agent watch."""
     home, project = _setup_env(tmp_path, monkeypatch)
+    monkeypatch.setattr("lorekeep.cli._is_interactive", lambda: True)
 
     mock_proc = MagicMock()
     mock_proc.pid = 99999
@@ -105,18 +106,43 @@ def test_init_starts_daemon(tmp_path: Path, monkeypatch):
     assert pid_file.read_text().strip() == "99999"
 
 
-def test_init_no_watch_flag(tmp_path: Path, monkeypatch):
-    """init --no-watch should not start daemon."""
+def test_init_skips_daemon_in_noninteractive(tmp_path: Path, monkeypatch):
+    """init --watch in non-interactive mode should not spawn daemon."""
     home, project = _setup_env(tmp_path, monkeypatch)
+    # _is_interactive() returns False in CliRunner by default
 
     mock_popen = MagicMock()
     monkeypatch.setattr("subprocess.Popen", mock_popen)
 
-    result = runner.invoke(app, ["init", "--yes", "--no-watch"])
+    result = runner.invoke(app, ["init", "--yes"])
     assert result.exit_code == 0, result.stdout
 
     mock_popen.assert_not_called()
-    assert not (home / "agent.pid").exists()
+    assert "non-interactive" in result.stdout.lower()
+
+
+def test_init_rerun_revives_dead_daemon(tmp_path: Path, monkeypatch):
+    """Re-running init should start daemon if it's not running, even if config exists."""
+    home, project = _setup_env(tmp_path, monkeypatch)
+    monkeypatch.setattr("lorekeep.cli._is_interactive", lambda: True)
+
+    # First init creates config
+    runner.invoke(app, ["init", "--yes", "--no-watch"])
+
+    # Simulate dead daemon: stale PID file pointing to nonexistent process
+    pid_path = home / "agent.pid"
+    pid_path.write_text("999999")
+
+    mock_proc = MagicMock()
+    mock_proc.pid = 88888
+    mock_popen = MagicMock(return_value=mock_proc)
+    monkeypatch.setattr("subprocess.Popen", mock_popen)
+
+    result = runner.invoke(app, ["init", "--yes"])
+    assert result.exit_code == 0, result.stdout
+
+    mock_popen.assert_called_once()
+    assert pid_path.read_text().strip() == "88888"
 
 
 # ── Init creates pending/ dir ─────────────────────────────────────────────
