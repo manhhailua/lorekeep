@@ -227,12 +227,11 @@ app.add_typer(mcp_app, name="mcp")
 
 @mcp_app.command("add")
 def mcp_add(
-    agent: str = typer.Option(..., "--agent", help="claude | cursor | codex"),
+    agent: str = typer.Option(..., "--agent", help="claude | cursor | codex | opencode"),
     scope: str = typer.Option("project", "--scope", help="project | user"),
     ns: str = typer.Option(None, "--ns", help="namespace to scope the agent to"),
 ) -> None:
     """Write the agent's MCP config + print an agent-memory snippet."""
-    from lorekeep.integrations import claude_code, codex, cursor
     from lorekeep.integrations.common import agent_memory_snippet, resolve_command
 
     p = resolve_paths()
@@ -240,9 +239,9 @@ def mcp_add(
     command, args = resolve_command(config.install_source)
 
     target = Path.cwd() if scope == "project" else Path.home()
-    writers = {"claude": claude_code, "cursor": cursor, "codex": codex}
+    writers = _agent_writers()
     if agent not in writers:
-        typer.echo(f"unknown agent: {agent} (choose claude|cursor|codex)")
+        typer.echo(f"unknown agent: {agent} (choose claude|cursor|codex|opencode)")
         raise typer.Exit(code=1)
     written = writers[agent].write_config(target, command, args, ns)
     typer.echo(f"wrote {agent} config -> {written}")
@@ -357,10 +356,12 @@ def init(
         (ns_dir / "about.md").write_text(about_md)
         typer.echo(f"  wrote: {ns_dir / 'about.md'}")
 
+    # Auto-detect and wire coding agents (active session or installed).
     if not config_existed:
+        _auto_wire_agents(p, ns)
         typer.echo("\nNext steps:")
         typer.echo("  1. Compile:           uvx lorekeep compile   (or LOREKEEP_PROVIDER=fake)")
-        typer.echo(f"  2. Wire an agent:     uvx lorekeep mcp add --agent claude --ns {ns}")
+        typer.echo("  2. More agents:       uvx lorekeep mcp add --agent <claude|cursor|codex|opencode>")
 
 
 def _interactive_init(p: dict) -> tuple[str, str, str]:
@@ -418,6 +419,51 @@ def _interactive_init(p: dict) -> tuple[str, str, str]:
     }
     p["config"].write_text(yaml.dump(config, default_flow_style=False, sort_keys=False))
     return ns, name, bio
+
+
+def _auto_wire_agents(p: dict, ns: str) -> None:
+    """Detect coding agents and write their MCP configs automatically.
+
+    If running inside a coding agent (env var set), wires only that agent.
+    Otherwise scans the filesystem for all installed agents and wires each.
+    """
+    from lorekeep.integrations.detect import detect_agents
+    from lorekeep.integrations.common import agent_memory_snippet, resolve_command
+
+    detected = detect_agents()
+    if not detected:
+        typer.echo("\n  No coding agents detected — run `lorekeep mcp add --agent <name>` after install.")
+        return
+
+    config = load_config(p["config"])
+    command, args = resolve_command(config.install_source)
+
+    writers = _agent_writers()
+    target = Path.cwd()
+
+    typer.echo(f"\n  Detected agents: {', '.join(detected)}")
+    for agent_name in detected:
+        writer = writers.get(agent_name)
+        if not writer:
+            continue
+        try:
+            written = writer.write_config(target, command, args, ns)
+            typer.echo(f"  wired {agent_name} -> {written}")
+        except Exception as exc:
+            typer.echo(f"  {agent_name}: failed ({exc})")
+
+    typer.echo("\n  " + agent_memory_snippet().replace("\n", "\n  ").strip())
+
+
+def _agent_writers() -> dict:
+    """Return the agent-name → writer-module mapping (lazy import)."""
+    from lorekeep.integrations import claude_code, codex, cursor, opencode
+    return {
+        "claude": claude_code,
+        "cursor": cursor,
+        "codex": codex,
+        "opencode": opencode,
+    }
 
 
 @app.command()

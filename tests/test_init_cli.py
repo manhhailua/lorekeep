@@ -117,3 +117,67 @@ def test_init_no_about_when_raw_has_files(tmp_path: Path, monkeypatch):
     result = runner.invoke(app, ["init"])
     assert result.exit_code == 0, result.stdout
     assert not (home / "raw" / "public" / "about.md").exists()
+
+
+def test_init_auto_wires_detected_agent(tmp_path: Path, monkeypatch):
+    """init detects active agent from env and writes its MCP config."""
+    home = tmp_path / "home"
+    project = tmp_path / "project"
+    project.mkdir()
+    fake_home = tmp_path / "fakehome"
+    fake_home.mkdir()
+    monkeypatch.setenv("LOREKEEP_HOME", str(home))
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.chdir(project)
+    monkeypatch.setenv("OPENCODE", "1")
+    monkeypatch.delenv("CLAUDECODE", raising=False)
+    monkeypatch.setattr("pathlib.Path.home", lambda: fake_home)
+    monkeypatch.setattr("lorekeep.integrations.detect.shutil.which", lambda _: None)
+    result = runner.invoke(app, ["init", "--yes"])
+    assert result.exit_code == 0, result.stdout
+    import json
+    mcp_path = project / "opencode.json"
+    assert mcp_path.exists(), f"opencode.json not written: {result.stdout}"
+    data = json.loads(mcp_path.read_text())
+    assert data["mcp"]["lorekeep"]["type"] == "local"
+
+
+def test_init_auto_wires_installed_agents(tmp_path: Path, monkeypatch):
+    """init in shell mode scans filesystem and wires all installed agents."""
+    home = tmp_path / "home"
+    fake_home = tmp_path / "fakehome"
+    project = tmp_path / "project"
+    project.mkdir()
+    (fake_home / ".claude").mkdir(parents=True)
+    (fake_home / ".config" / "opencode").mkdir(parents=True)
+
+    monkeypatch.setenv("LOREKEEP_HOME", str(home))
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.chdir(project)
+    monkeypatch.delenv("OPENCODE", raising=False)
+    monkeypatch.delenv("CLAUDECODE", raising=False)
+    monkeypatch.setattr("pathlib.Path.home", lambda: fake_home)
+    monkeypatch.setattr("lorekeep.integrations.detect.shutil.which", lambda _: None)
+
+    result = runner.invoke(app, ["init", "--yes"])
+    assert result.exit_code == 0, result.stdout
+    assert (project / ".mcp.json").exists()
+    assert (project / "opencode.json").exists()
+
+
+def test_init_no_agents_detected_message(tmp_path: Path, monkeypatch):
+    """init reports when no agents are detected."""
+    home = tmp_path / "home"
+    fake_home = tmp_path / "fakehome"
+    fake_home.mkdir()
+    monkeypatch.setenv("LOREKEEP_HOME", str(home))
+    monkeypatch.setenv("HOME", str(fake_home))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("OPENCODE", raising=False)
+    monkeypatch.delenv("CLAUDECODE", raising=False)
+    monkeypatch.setattr("pathlib.Path.home", lambda: fake_home)
+    monkeypatch.setattr("lorekeep.integrations.detect.shutil.which", lambda _: None)
+
+    result = runner.invoke(app, ["init", "--yes"])
+    assert result.exit_code == 0, result.stdout
+    assert "no coding agents detected" in result.stdout.lower()

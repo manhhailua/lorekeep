@@ -9,7 +9,7 @@ graph — including the backup setup. For the terse 5-step version, see the
 - A **data home** (`.lorekeep/` in a source checkout, or an XDG dir for an
   installed copy) holding your config, schema, raw docs, and compiled graph.
 - A compiled `facts.jsonl` graph built from your markdown.
-- A coding agent (Claude Code / Cursor / Codex) reading the graph over MCP,
+- A coding agent (Claude Code / Cursor / Codex / opencode) reading the graph over MCP,
   scoped to a namespace.
 - A private git backup of the data home, so the graph syncs to your other
   machines.
@@ -49,7 +49,16 @@ uvx lorekeep init
    `raw/<ns>/about.md`, so the compiled graph starts with a fact about you.
 
 It then writes `config.yaml` + `schema.json`, creates `raw/` + `graph/` dirs,
-and writes `raw/<ns>/about.md`.
+writes `raw/<ns>/about.md`, and **auto-detects coding agents** to wire:
+
+- If you're running `init` **inside** a coding agent (e.g. from opencode's or
+  Claude Code's shell), it wires only that agent.
+- If you're in a **plain shell**, it scans for all installed agents
+  (`~/.claude`, `~/.cursor`, `~/.codex`, `~/.config/opencode`) and wires each.
+
+Each detected agent gets its MCP config written automatically (`.mcp.json`,
+`.cursor/mcp.json`, `config.toml`, or `opencode.json` — depending on the agent).
+Restart the agent to pick up the new tools.
 
 Non-interactive (CI, scripts): `uvx lorekeep init --yes`. From a source
 checkout it uses the repo's own `.lorekeep/`; for an installed copy it uses
@@ -113,13 +122,15 @@ Recompiling unchanged input is **byte-identical** (determinism is a hard
 requirement) — unchanged chunks return cached LLM output, so only edited docs
 cost tokens on recompile.
 
-## 6. Wire a coding agent
+## 6. Wire additional coding agents
 
-Write a portable `.mcp.json` scoped to a namespace:
+`init` already wired agents it detected. To add more, or to re-scope one:
 
 ```bash
-uvx lorekeep mcp add --agent claude --ns backend
+uvx lorekeep mcp add --agent opencode --ns backend
 ```
+
+Supported agents: `claude`, `cursor`, `codex`, `opencode`.
 
 Restart the agent → the 8 read-only Lorekeep tools (`search`, `get_node`,
 `neighbors`, `at_time`, `history`, `changes`, `list_namespaces`, `schema`) are

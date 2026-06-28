@@ -26,3 +26,17 @@ def test_mcp_add_codex_user(tmp_path: Path, monkeypatch):
     assert result.exit_code == 0, result.stdout
     text = (tmp_path / "config.toml").read_text()
     assert "--from" in text and "git+https://github.com/x/lorekeep.git" in text
+
+
+def test_mcp_add_opencode_project(tmp_path: Path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("LOREKEEP_CONFIG", str(tmp_path / "config.yaml"))
+    (tmp_path / "config.yaml").write_text("install_source: local\n")
+    result = runner.invoke(app, ["mcp", "add", "--agent", "opencode", "--ns", "teams/backend"])
+    assert result.exit_code == 0, result.stdout
+    import json
+    data = json.loads((tmp_path / "opencode.json").read_text())
+    entry = data["mcp"]["lorekeep"]
+    assert entry["type"] == "local"
+    assert entry["command"] == ["lorekeep", "serve", "--transport", "stdio"]
+    assert entry["environment"]["LOREKEEP_NS"] == "teams/backend"

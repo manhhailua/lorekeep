@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from lorekeep.integrations.common import resolve_command, agent_memory_snippet
-from lorekeep.integrations import claude_code, cursor, codex
+from lorekeep.integrations import claude_code, cursor, codex, opencode
 
 
 def test_resolve_command_pypi():
@@ -66,3 +66,39 @@ def test_codex_rejects_newline_in_ns(tmp_path: Path):
     import pytest
     with pytest.raises(ValueError):
         codex.write_config(tmp_path, "uvx", ["lorekeep"], ns="team\n[malicious]")
+
+
+def test_opencode_writes_json(tmp_path: Path):
+    opencode.write_config(tmp_path, "uvx", ["lorekeep", "serve", "--transport", "stdio"],
+                          ns="teams/backend")
+    data = json.loads((tmp_path / "opencode.json").read_text())
+    entry = data["mcp"]["lorekeep"]
+    assert entry["type"] == "local"
+    assert entry["command"] == ["uvx", "lorekeep", "serve", "--transport", "stdio"]
+    assert entry["enabled"] is True
+    assert entry["environment"]["LOREKEEP_NS"] == "teams/backend"
+
+
+def test_opencode_no_ns(tmp_path: Path):
+    opencode.write_config(tmp_path, "uvx", ["lorekeep", "serve", "--transport", "stdio"], ns=None)
+    data = json.loads((tmp_path / "opencode.json").read_text())
+    entry = data["mcp"]["lorekeep"]
+    assert "environment" not in entry
+
+
+def test_opencode_idempotent(tmp_path: Path):
+    opencode.write_config(tmp_path, "uvx", ["lorekeep"], ns="team/a")
+    opencode.write_config(tmp_path, "uvx", ["lorekeep"], ns="team/b")
+    data = json.loads((tmp_path / "opencode.json").read_text())
+    assert data["mcp"]["lorekeep"]["environment"]["LOREKEEP_NS"] == "team/b"
+
+
+def test_opencode_preserves_existing_keys(tmp_path: Path):
+    existing = {"$schema": "https://opencode.ai/config.json", "model": "anthropic/claude-sonnet-4-5", "mcp": {"other": {"type": "local", "command": ["foo"]}}}
+    (tmp_path / "opencode.json").write_text(json.dumps(existing))
+    opencode.write_config(tmp_path, "uvx", ["lorekeep", "serve", "--transport", "stdio"], ns=None)
+    data = json.loads((tmp_path / "opencode.json").read_text())
+    assert data["$schema"] == "https://opencode.ai/config.json"
+    assert data["model"] == "anthropic/claude-sonnet-4-5"
+    assert "other" in data["mcp"]
+    assert "lorekeep" in data["mcp"]
