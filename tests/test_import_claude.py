@@ -193,6 +193,61 @@ def test_import_session_deep_handles_empty_transcript(tmp_path: Path):
     assert result == []
 
 
+def test_import_session_deep_is_idempotent(tmp_path: Path, fixtures: Path):
+    """Re-importing the same transcript skips LLM summarization."""
+    session_dir = fixtures / "claude-session"
+    raw_root = tmp_path / "raw"
+    provider = FakeProvider(responses=["# Summary\n\n## Decisions\n- Use FastAPI\n"] * 50)
+
+    first = import_session_deep(session_dir, raw_root, namespace="test-session",
+                                provider=provider)
+    assert len(first) >= 1
+    assert len(provider.calls) >= 1
+
+    # Second call: same transcript, should skip entirely
+    call_before = len(provider.calls)
+    second = import_session_deep(session_dir, raw_root, namespace="test-session",
+                                 provider=provider)
+    assert second == []
+    assert len(provider.calls) == call_before  # no new LLM calls
+
+
+def test_import_session_deep_re_imports_on_change(tmp_path: Path):
+    """Transcript changed → re-import triggers LLM call."""
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    transcript = session_dir / "sess.jsonl"
+    transcript.write_text('{"role":"user","message":{"content":"what is FastAPI?"}}\n'
+                          '{"role":"assistant","message":{"content":[{"type":"text","text":"a web framework"}]}}\n')
+
+    raw_root = tmp_path / "raw"
+    provider = FakeProvider(responses=["# Summary\n\n## Decisions\n- Use FastAPI\n"] * 50)
+
+    first = import_session_deep(session_dir, raw_root, namespace="ns", provider=provider)
+    assert len(first) >= 1
+
+    # Modify transcript
+    transcript.write_text('{"role":"user","message":{"content":"what is Flask?"}}\n'
+                          '{"role":"assistant","message":{"content":[{"type":"text","text":"a web framework"}]}}\n')
+
+    call_before = len(provider.calls)
+    second = import_session_deep(session_dir, raw_root, namespace="ns", provider=provider)
+    assert len(second) >= 1
+    assert len(provider.calls) > call_before  # LLM called again
+
+
+def test_import_session_deep_dry_run_skips_manifest(tmp_path: Path, fixtures: Path):
+    """Dry run should not write manifest (so real import still processes)."""
+    session_dir = fixtures / "claude-session"
+    raw_root = tmp_path / "raw"
+    provider = FakeProvider(responses=["dummy"] * 50)
+
+    import_session_deep(session_dir, raw_root, namespace="ns",
+                        provider=provider, dry_run=True)
+    manifest_path = raw_root / "ns" / ".import-manifest.json"
+    assert not manifest_path.exists()
+
+
 # ---------------------------------------------------------------------------
 # orchestrator
 # ---------------------------------------------------------------------------

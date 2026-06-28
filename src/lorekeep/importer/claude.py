@@ -342,6 +342,17 @@ def import_session_deep(
 
     jsonl = transcripts[0]
     session_id = session_dir.name
+
+    # Dedup: skip if transcript content unchanged since last import
+    transcript_hash = hashlib.sha256(
+        jsonl.read_bytes()
+    ).hexdigest()
+    manifest = load_import_manifest(raw_root, namespace)
+    manifest_key = str(jsonl)
+
+    if not dry_run and manifest.get(manifest_key) == transcript_hash:
+        return []
+
     turns = parse_transcript(jsonl)
     if not turns:
         return []
@@ -373,6 +384,10 @@ def import_session_deep(
         dest.write_text(md, encoding="utf-8")
         previous_summary = md[:1000]   # carry short context forward
         written.append(dest)
+
+    if not dry_run and written:
+        manifest[manifest_key] = transcript_hash
+        save_import_manifest(raw_root, namespace, manifest)
 
     return written
 
