@@ -142,8 +142,8 @@ import ──► raw/ ──► compile ─────────────�
                SERVE + QUERY (runtime, per device)
 facts.jsonl ──load──► GraphStore ──► ScopedGraph(ns) ──► MCP ──► agent
                          ▲              ▲                      │
-                         │              │         ◄── read queries
-                           │              └────────── write proposals (journal)
+                          │              │         ◄── read queries
+                          │              └────────── write proposals (journal)
                          └── lazy-reload on mtime change
 
                AUTONOMOUS AGENT DAEMON

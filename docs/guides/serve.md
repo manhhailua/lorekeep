@@ -67,8 +67,9 @@ resolve pass.
 - 0.5-0.8: implied without explicit source. "Based on the architecture, X likely depends on Y."
 - < 0.5: speculation — these are quarantined, not merged.
 
-Facts become visible after the next resolve pass (every 5 min or 50 pending
-entries when daemon is running; or run `lorekeep resolve` manually). **Note: resolve and daemon are planned for phase 2.**
+Facts become visible after the next resolve pass (run `lorekeep resolve`
+manually; or automatically when `lorekeep agent watch` detects new pending
+entries, polling every 60s).
 
 ## Keeping the graph current
 

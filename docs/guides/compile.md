@@ -52,8 +52,8 @@ Merges all pending agent-proposed facts from `pending/` journals into `facts.jso
 Facts are gated by confidence: high (≥0.8) auto-merge, medium (0.5-0.8) merge
 with review flag, low (<0.5) quarantine.
 
-Resolve also runs automatically: the daemon (`lorekeep agent watch`) resolves
-every 5 minutes or after 50 pending entries.
+Resolve also runs automatically: the daemon (`lorekeep agent watch`) detects
+new pending entries on every poll cycle (default 60s interval).
 
 ## 5. Full pipeline (compile + resolve)
 
