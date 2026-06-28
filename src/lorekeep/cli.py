@@ -39,6 +39,34 @@ def _build_provider(config: Config) -> LiteLLMProvider:
     )
 
 
+_FAKE_CANNED = json.dumps({
+    "nodes": [
+        {"id": "svc:payments-api", "type": "service", "name": "payments-api",
+         "props": {"lang": "go"}, "valid_from": "2024-01-15"},
+        {"id": "svc:auth", "type": "service", "name": "auth"},
+        {"id": "team:backend", "type": "team", "name": "team-backend"},
+        {"id": "dec:adr-007", "type": "decision",
+         "props": {"title": "payments-api adopts internal signing"}},
+    ],
+    "edges": [
+        {"type": "depends_on", "from": "svc:payments-api", "to": "svc:auth",
+         "valid_from": "2024-01-15", "valid_to": "2025-03-01"},
+        {"type": "decided_by", "from": "dec:adr-007", "to": "team:backend"},
+    ],
+    "aliases": {},
+})
+
+
+def _make_provider(config: Config) -> FakeProvider | LiteLLMProvider:
+    """Create provider honoring LOREKEEP_PROVIDER=fake for offline/test use.
+
+    Shared by standalone compile, daemon auto-compile, and import.
+    """
+    if os.environ.get("LOREKEEP_PROVIDER") == "fake":
+        return FakeProvider(responses=[_FAKE_CANNED])
+    return _build_provider(config)
+
+
 @app.command()
 def version() -> None:
     """Print the Lorekeep version."""
@@ -51,27 +79,7 @@ def compile() -> None:
     p = resolve_paths()
     schema = load_schema(p["schema"])
     config = load_config(p["config"])
-
-    if os.environ.get("LOREKEEP_PROVIDER") == "fake":
-        canned = json.dumps({
-            "nodes": [
-                {"id": "svc:payments-api", "type": "service", "name": "payments-api",
-                 "props": {"lang": "go"}, "valid_from": "2024-01-15"},
-                {"id": "svc:auth", "type": "service", "name": "auth"},
-                {"id": "team:backend", "type": "team", "name": "team-backend"},
-                {"id": "dec:adr-007", "type": "decision",
-                 "props": {"title": "payments-api adopts internal signing"}},
-            ],
-            "edges": [
-                {"type": "depends_on", "from": "svc:payments-api", "to": "svc:auth",
-                 "valid_from": "2024-01-15", "valid_to": "2025-03-01"},
-                {"type": "decided_by", "from": "dec:adr-007", "to": "team:backend"},
-            ],
-            "aliases": {},
-        })
-        provider = FakeProvider(responses=[canned])
-    else:
-        provider = _build_provider(config)
+    provider = _make_provider(config)
 
     manifest = compile_graph(
         raw_root=p["raw"], out_dir=p["out"], schema=schema,
@@ -79,6 +87,10 @@ def compile() -> None:
     )
     typer.echo(f"compiled: {manifest.node_count} nodes, {manifest.edge_count} edges, "
                f"run_id={manifest.run_id}, facts_hash={manifest.facts_hash}")
+
+    pending_dir = p.get("pending")
+    if pending_dir and pending_dir.exists():
+        _do_auto_resolve(p["out"], pending_dir)
 
 
 @app.command(name="eval")
@@ -663,27 +675,7 @@ def ingest(
         typer.echo(f"ingest: source must be under raw/ ({raw_root})")
         raise typer.Exit(code=1)
 
-    # Build provider (fake or real)
-    if os.environ.get("LOREKEEP_PROVIDER") == "fake":
-        canned = json.dumps({
-            "nodes": [
-                {"id": "svc:payments-api", "type": "service", "name": "payments-api",
-                 "props": {"lang": "go"}, "valid_from": "2024-01-15"},
-                {"id": "svc:auth", "type": "service", "name": "auth"},
-                {"id": "team:backend", "type": "team", "name": "team-backend"},
-                {"id": "dec:adr-007", "type": "decision",
-                 "props": {"title": "payments-api adopts internal signing"}},
-            ],
-            "edges": [
-                {"type": "depends_on", "from": "svc:payments-api", "to": "svc:auth",
-                 "valid_from": "2024-01-15", "valid_to": "2025-03-01"},
-                {"type": "decided_by", "from": "dec:adr-007", "to": "team:backend"},
-            ],
-            "aliases": {},
-        })
-        provider = FakeProvider(responses=[canned])
-    else:
-        provider = _build_provider(config)
+    provider = _make_provider(config)
 
     from lorekeep.agent import ingest_source
 
@@ -957,14 +949,14 @@ def watch(
             if raw_mtime > last_raw_mtime and last_raw_mtime > 0:
                 typer.echo(f"agent: raw/ changed ({len(raw_files)} files) — compiling...")
                 try:
-                    from pathlib import Path
-                    from lorekeep.pipeline import compile_graph
-                    from lorekeep.compile.providers import get_provider
-                    from lorekeep.defaults import default_schema
-                    schema = default_schema()
-                    provider = get_provider(p["config"])
-                    cache = p.get("cache", p["out"].parent / ".lorekeep" / "cache.json")
-                    compile_graph(raw_dir, p["out"], schema, provider, Path(cache))
+                    schema = load_schema(p["schema"])
+                    config = load_config(p["config"])
+                    provider = _make_provider(config)
+                    compile_graph(
+                        raw_root=raw_dir, out_dir=p["out"], schema=schema,
+                        provider=provider, cache_path=p["cache"],
+                        chunk_lines=config.compile.chunk_lines,
+                    )
                     typer.echo("agent: compile done")
                     compiled = True
                 except Exception as exc:
