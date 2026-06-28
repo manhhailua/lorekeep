@@ -1,6 +1,6 @@
 [project]
 name = "lorekeep"
-version = "0.4.0"
+version = "0.5.0"
 description = "Temporal knowledge graph for AI agents via MCP"
 readme = "README.md"
 license = {text = "MIT"}

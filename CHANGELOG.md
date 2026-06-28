@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/manhhailua/lorekeep/compare/v0.4.0...v0.5.0) (2026-06-28)
+
+
+### Features
+
+* add import --from codex and --from opencode + hooks for all 4 agents ([#66](https://github.com/manhhailua/lorekeep/issues/66)) ([8a1e364](https://github.com/manhhailua/lorekeep/commit/8a1e364e19cf1b45944cea2ed89d9d7468fec9c6))
+
 ## [0.4.0](https://github.com/manhhailua/lorekeep/compare/v0.3.1...v0.4.0) (2026-06-28)
 
 
