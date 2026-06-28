@@ -73,7 +73,7 @@ PROVIDER_PRESETS: dict[str, dict] = {
         "api_key_env": None,
     },
     "5": {
-        "label": "Skip — offline/fake mode (set LOREKEEP_PROVIDER=fake to compile)",
+        "label": "Skip — configure provider later (edit config.yaml)",
         "backend": "openai",
         "model": "openai/gpt-4o-mini",
         "api_base": None,

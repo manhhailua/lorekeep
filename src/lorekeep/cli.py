@@ -8,7 +8,7 @@ from pathlib import Path
 import typer
 
 from lorekeep import __version__
-from lorekeep.compile.providers import FakeProvider, LiteLLMProvider
+from lorekeep.compile.providers import LiteLLMProvider
 from lorekeep.config import Config, load_config
 from lorekeep.pipeline import compile_graph
 from lorekeep.paths import resolve_paths
@@ -39,32 +39,22 @@ def _build_provider(config: Config) -> LiteLLMProvider:
     )
 
 
-_FAKE_CANNED = json.dumps({
-    "nodes": [
-        {"id": "svc:payments-api", "type": "service", "name": "payments-api",
-         "props": {"lang": "go"}, "valid_from": "2024-01-15"},
-        {"id": "svc:auth", "type": "service", "name": "auth"},
-        {"id": "team:backend", "type": "team", "name": "team-backend"},
-        {"id": "dec:adr-007", "type": "decision",
-         "props": {"title": "payments-api adopts internal signing"}},
-    ],
-    "edges": [
-        {"type": "depends_on", "from": "svc:payments-api", "to": "svc:auth",
-         "valid_from": "2024-01-15", "valid_to": "2025-03-01"},
-        {"type": "decided_by", "from": "dec:adr-007", "to": "team:backend"},
-    ],
-    "aliases": {},
-})
-
-
-def _make_provider(config: Config) -> FakeProvider | LiteLLMProvider:
-    """Create provider honoring LOREKEEP_PROVIDER=fake for offline/test use.
-
-    Shared by standalone compile, daemon auto-compile, and import.
-    """
-    if os.environ.get("LOREKEEP_PROVIDER") == "fake":
-        return FakeProvider(responses=[_FAKE_CANNED])
+def _make_provider(config: Config) -> LiteLLMProvider:
+    """Create provider for compile.  Tests monkeypatch this to inject FakeProvider."""
     return _build_provider(config)
+
+
+def _make_import_provider(config: Config) -> LiteLLMProvider:
+    """Create provider for import deep mode.  Tests monkeypatch this."""
+    return _build_provider(config)
+
+
+def _has_provider(config: Config) -> bool:
+    """Check if a provider API key is available.  Tests monkeypatch this."""
+    return bool(
+        (config.provider.api_key_env and os.environ.get(config.provider.api_key_env))
+        or config.provider.api_key
+    )
 
 
 @app.command()
@@ -512,11 +502,7 @@ def _auto_import_and_compile(p: dict) -> None:
     schema = load_schema(p["schema"])
     config = load_config(p["config"])
 
-    has_key = (
-        os.environ.get("LOREKEEP_PROVIDER") == "fake"
-        or (config.provider.api_key_env and os.environ.get(config.provider.api_key_env))
-        or config.provider.api_key
-    )
+    has_key = _has_provider(config)
 
     if not has_key:
         if imported:
@@ -640,15 +626,6 @@ def import_cmd(
     p = resolve_paths()
     config = load_config(p["config"])
 
-    def _build_import_provider():
-        """Deep-mode provider (fake under LOREKEEP_PROVIDER=fake, else config)."""
-        if os.environ.get("LOREKEEP_PROVIDER") == "fake":
-            from lorekeep.compile.providers import FakeProvider
-            # Provide enough canned responses for deep mode batches
-            canned = "# Knowledge Summary\n\n## Decisions\n- No real session data imported (fake provider).\n"
-            return FakeProvider(responses=[canned] * 50)
-        return _build_provider(config)
-
     # --- Cursor: global composer conversations, deep-only ------------------
     if from_source == "cursor":
         if quick:
@@ -673,7 +650,7 @@ def import_cmd(
         ns = session_ns or "cursor-session"
         result = import_cursor(
             raw_root=p["raw"], db_path=db, namespace=ns,
-            provider=_build_import_provider(), dry_run=dry_run,
+            provider=_make_import_provider(config), dry_run=dry_run,
         )
         ses_count = len(result.get("session", []))
         if dry_run:
@@ -697,7 +674,7 @@ def import_cmd(
                        "Run Claude Code in this project first.")
             raise typer.Exit(code=1)
 
-    provider = None if quick else _build_import_provider()
+    provider = None if quick else _make_import_provider(config)
 
     from lorekeep.importer.claude import import_claude
     result = import_claude(

@@ -35,7 +35,7 @@ uv run lorekeep <command>                    # run the CLI in dev mode
 | `backup [--init <remote-url>]` | Commit + push `.lorekeep/` to your private backup git repo |
 | `version` | Print version |
 
-**Offline / no-LLM mode:** set `LOREKEEP_PROVIDER=fake` to make `compile` and `import` use `FakeProvider` with canned responses. **All CLI/compile/import tests use this** — no API key or real model required.
+**Offline / no-LLM mode:** tests inject `FakeProvider` via monkeypatch (`patch_make_provider` / `patch_make_import_provider` fixtures in `conftest.py`). **All CLI/compile/import tests use this** — no API key or real model required.
 
 ## Architecture: two strictly separated phases
 
@@ -83,7 +83,7 @@ Pure (no I/O), 4-tier precedence high→low: explicit `LOREKEEP_RAW/OUT/CACHE/SC
 
 ## Tests
 
-`~140` tests, no network. Gold corpus in `tests/fixtures/gold/`, raw fixtures in `tests/fixtures/raw/`. Compile/serve/import tests set `LOREKEEP_*` env vars and `LOREKEEP_PROVIDER=fake` to pin paths and avoid the LLM — follow this pattern for any new CLI test rather than hitting a real provider.
+`~140` tests, no network. Gold corpus in `tests/fixtures/gold/`, raw fixtures in `tests/fixtures/raw/`. Compile/serve/import tests inject `FakeProvider` via `patch_make_provider` / `patch_make_import_provider` conftest fixtures to pin paths and avoid the LLM — follow this pattern for any new CLI test rather than hitting a real provider.
 
 ## Cursor Cloud specific instructions
 
@@ -91,7 +91,7 @@ The startup update script already runs `uv sync`; the toolchain (Python 3.11+ vi
 
 Non-obvious caveats for running/testing here:
 
-- **No API key needed for any dev work.** Export `LOREKEEP_PROVIDER=fake` to run `compile`/`import` and the full end-to-end flow offline with `FakeProvider` (canned facts). To avoid polluting the repo's `.lorekeep/` data home, run demos against a throwaway data home: `LOREKEEP_HOME=/tmp/lk uv run lorekeep <cmd>`.
+- **No API key needed for tests.** Tests inject `FakeProvider` via `patch_make_provider` / `patch_make_import_provider` conftest fixtures. For manual smoke testing, configure a real provider in `config.yaml`. To avoid polluting the repo's `.lorekeep/` data home, run demos against a throwaway data home: `LOREKEEP_HOME=/tmp/lk uv run lorekeep <cmd>`.
 - **End-to-end smoke flow** (offline): `init` → drop a markdown file under `.lorekeep/raw/<ns>/` → `compile` → `check`/`doctor`. Then query the graph by calling the `mcp_server.py` tools directly after `ms.configure(graph_dir=..., allowed_ns=[...], schema_path=...)` — the read tools (`search`, `get_node`, `neighbors`, `at_time`, `history`, `list_namespaces`) are plain functions, no MCP transport required. `search` returns a list of node-id strings; `get_node` returns a dict; `neighbors`/`at_time`/`changes` return `{"nodes": [...], "edges": [...]}`.
 - **`lorekeep serve` blocks on stdio** waiting for an MCP client — it won't return on its own. To just confirm it boots, run it under `timeout` with stdin closed (`timeout 3 uv run lorekeep serve --transport stdio </dev/null`); a clean timeout with no error output means success.
 - **`tests/test_mcp_reload.py::test_lazy_reload_on_facts_change` is timing-flaky** — lazy-reload triggers off `facts.jsonl` mtime, and the test can rewrite the file within one mtime tick on fast filesystems, so it intermittently fails then passes on re-run. Treat an isolated failure of just this test as a flake, not a regression.

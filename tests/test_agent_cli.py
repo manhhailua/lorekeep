@@ -6,14 +6,13 @@ from lorekeep.cli import app
 runner = CliRunner()
 
 
-def test_agent_ingest_yes_flag(monkeypatch, tmp_path: Path, fixtures: Path):
+def test_agent_ingest_yes_flag(patch_make_provider, monkeypatch, tmp_path: Path, fixtures: Path):
     """agent ingest --yes: approve all facts, journal is created."""
     monkeypatch.setenv("LOREKEEP_RAW", str(tmp_path / "raw"))
     monkeypatch.setenv("LOREKEEP_OUT", str(tmp_path / "graph"))
     monkeypatch.setenv("LOREKEEP_CACHE", str(tmp_path / "cache.json"))
     monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
     monkeypatch.setenv("LOREKEEP_PENDING", str(tmp_path / "pending"))
-    monkeypatch.setenv("LOREKEEP_PROVIDER", "fake")
 
     raw_file = tmp_path / "raw" / "backend" / "payments.md"
     raw_file.parent.mkdir(parents=True)
@@ -35,14 +34,13 @@ def test_agent_ingest_yes_flag(monkeypatch, tmp_path: Path, fixtures: Path):
         assert entry["status"] == "pending"
 
 
-def test_agent_ingest_interactive_approve_all(monkeypatch, tmp_path: Path, fixtures: Path):
+def test_agent_ingest_interactive_approve_all(patch_make_provider, monkeypatch, tmp_path: Path, fixtures: Path):
     """agent ingest: interactive mode, approve all nodes and edges."""
     monkeypatch.setenv("LOREKEEP_RAW", str(tmp_path / "raw"))
     monkeypatch.setenv("LOREKEEP_OUT", str(tmp_path / "graph"))
     monkeypatch.setenv("LOREKEEP_CACHE", str(tmp_path / "cache.json"))
     monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
     monkeypatch.setenv("LOREKEEP_PENDING", str(tmp_path / "pending"))
-    monkeypatch.setenv("LOREKEEP_PROVIDER", "fake")
 
     raw_file = tmp_path / "raw" / "backend" / "payments.md"
     raw_file.parent.mkdir(parents=True)
@@ -61,14 +59,13 @@ def test_agent_ingest_interactive_approve_all(monkeypatch, tmp_path: Path, fixtu
     assert len(lines) == 6  # 4 nodes + 2 edges
 
 
-def test_agent_ingest_interactive_reject_all(monkeypatch, tmp_path: Path, fixtures: Path):
+def test_agent_ingest_interactive_reject_all(patch_make_provider, monkeypatch, tmp_path: Path, fixtures: Path):
     """agent ingest: interactive mode, reject all → no journal entries."""
     monkeypatch.setenv("LOREKEEP_RAW", str(tmp_path / "raw"))
     monkeypatch.setenv("LOREKEEP_OUT", str(tmp_path / "graph"))
     monkeypatch.setenv("LOREKEEP_CACHE", str(tmp_path / "cache.json"))
     monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
     monkeypatch.setenv("LOREKEEP_PENDING", str(tmp_path / "pending"))
-    monkeypatch.setenv("LOREKEEP_PROVIDER", "fake")
 
     raw_file = tmp_path / "raw" / "backend" / "payments.md"
     raw_file.parent.mkdir(parents=True)
@@ -82,14 +79,13 @@ def test_agent_ingest_interactive_reject_all(monkeypatch, tmp_path: Path, fixtur
     assert "nothing approved" in result.stdout
 
 
-def test_agent_ingest_interactive_review_individual(monkeypatch, tmp_path: Path, fixtures: Path):
+def test_agent_ingest_interactive_review_individual(patch_make_provider, monkeypatch, tmp_path: Path, fixtures: Path):
     """agent ingest: interactive mode, reject all-at-once but approve individually."""
     monkeypatch.setenv("LOREKEEP_RAW", str(tmp_path / "raw"))
     monkeypatch.setenv("LOREKEEP_OUT", str(tmp_path / "graph"))
     monkeypatch.setenv("LOREKEEP_CACHE", str(tmp_path / "cache.json"))
     monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
     monkeypatch.setenv("LOREKEEP_PENDING", str(tmp_path / "pending"))
-    monkeypatch.setenv("LOREKEEP_PROVIDER", "fake")
 
     raw_file = tmp_path / "raw" / "backend" / "payments.md"
     raw_file.parent.mkdir(parents=True)
@@ -111,12 +107,11 @@ def test_agent_ingest_interactive_review_individual(monkeypatch, tmp_path: Path,
     assert len(lines) == 4  # 4 nodes approved, 0 edges
 
 
-def test_agent_ingest_missing_source(monkeypatch, tmp_path: Path, fixtures: Path):
+def test_agent_ingest_missing_source(patch_make_provider, monkeypatch, tmp_path: Path, fixtures: Path):
     """agent ingest: missing source file errors out."""
     monkeypatch.setenv("LOREKEEP_RAW", str(tmp_path / "raw"))
     monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
     monkeypatch.setenv("LOREKEEP_PENDING", str(tmp_path / "pending"))
-    monkeypatch.setenv("LOREKEEP_PROVIDER", "fake")
 
     raw_root = tmp_path / "raw"
     raw_root.mkdir(parents=True)
@@ -126,12 +121,11 @@ def test_agent_ingest_missing_source(monkeypatch, tmp_path: Path, fixtures: Path
     assert "not found" in result.stdout
 
 
-def test_agent_ingest_source_outside_raw(monkeypatch, tmp_path: Path, fixtures: Path):
+def test_agent_ingest_source_outside_raw(patch_make_provider, monkeypatch, tmp_path: Path, fixtures: Path):
     """agent ingest: source outside raw/ errors out."""
     monkeypatch.setenv("LOREKEEP_RAW", str(tmp_path / "raw"))
     monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
     monkeypatch.setenv("LOREKEEP_PENDING", str(tmp_path / "pending"))
-    monkeypatch.setenv("LOREKEEP_PROVIDER", "fake")
 
     raw_root = tmp_path / "raw"
     raw_root.mkdir(parents=True)

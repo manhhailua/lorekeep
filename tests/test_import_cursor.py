@@ -191,11 +191,10 @@ def test_import_cursor_missing_db_errors(tmp_path: Path):
 # ---------------------------------------------------------------------------
 
 
-def test_cli_import_cursor_runs(monkeypatch, tmp_path: Path, state_db: Path):
+def test_cli_import_cursor_runs(patch_make_import_provider, monkeypatch, tmp_path: Path, state_db: Path):
     monkeypatch.setenv("LOREKEEP_RAW", str(tmp_path / "raw"))
     monkeypatch.setenv("LOREKEEP_OUT", str(tmp_path / "graph"))
     monkeypatch.setenv("LOREKEEP_CACHE", str(tmp_path / "cache.json"))
-    monkeypatch.setenv("LOREKEEP_PROVIDER", "fake")
     monkeypatch.setenv("CURSOR_STATE_DB", str(state_db))
 
     result = runner.invoke(app, ["import", "--from", "cursor"])
@@ -205,7 +204,6 @@ def test_cli_import_cursor_runs(monkeypatch, tmp_path: Path, state_db: Path):
 
 def test_cli_import_cursor_rejects_quick(monkeypatch, tmp_path: Path, state_db: Path):
     monkeypatch.setenv("CURSOR_STATE_DB", str(state_db))
-    monkeypatch.setenv("LOREKEEP_PROVIDER", "fake")
     result = runner.invoke(app, ["import", "--from", "cursor", "--quick"])
     assert result.exit_code == 1
     assert "deep-only" in result.stdout

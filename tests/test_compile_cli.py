@@ -6,13 +6,12 @@ from lorekeep.cli import app
 runner = CliRunner()
 
 
-def test_compile_command_uses_config_provider(monkeypatch, tmp_path: Path, fixtures: Path):
+def test_compile_command_uses_config_provider(patch_make_provider, monkeypatch, tmp_path: Path, fixtures: Path):
     # point the CLI at temp dirs via env
     monkeypatch.setenv("LOREKEEP_RAW", str(tmp_path / "raw"))
     monkeypatch.setenv("LOREKEEP_OUT", str(tmp_path / "graph"))
     monkeypatch.setenv("LOREKEEP_CACHE", str(tmp_path / "cache.json"))
     monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
-    monkeypatch.setenv("LOREKEEP_PROVIDER", "fake")
 
     raw = tmp_path / "raw/backend/payments.md"
     raw.parent.mkdir(parents=True)

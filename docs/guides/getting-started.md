@@ -108,8 +108,9 @@ provider:
 Prefer an env var instead? Set `api_key_env: DEEPSEEK_API_KEY` (and
 `api_key: null`), then `export DEEPSEEK_API_KEY=sk-...`. Both work.
 
-> **Offline / no key?** `export LOREKEEP_PROVIDER=fake` makes `compile` use a
-> canned response — enough to try the rest of the flow with zero API cost.
+> **No provider yet?** `init` wires agents and imports memory files
+> regardless. Compile is skipped until you add an API key — the graph
+> will be empty but the MCP tools are wired and ready.
 
 ## 5. Compile
 
@@ -188,8 +189,7 @@ recovery — is in [Backing up the data home](backup.md).
 - **`lorekeep serve` hangs** — it blocks on stdio waiting for an MCP client.
   To just confirm it boots, run it under a timeout with stdin closed:
   `timeout 3 uvx lorekeep serve --transport stdio </dev/null`.
-- **Compile gave 0 nodes** — the provider wasn't reached. Either
-  `export LOREKEEP_PROVIDER=fake` for an offline test, or check
+- **Compile gave 0 nodes** — the provider wasn't reached. Check
   `api_key_env` / `api_base` in `config.yaml`. If you switched provider or
   model after a first compile, delete `<data-home>/cache.json` (the cache key
   doesn't include the model) and recompile.

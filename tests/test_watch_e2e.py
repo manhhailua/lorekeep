@@ -26,7 +26,6 @@ def _bootstrap_home(tmp_path: Path):
 def _set_env(home: Path):
     return {
         "LOREKEEP_HOME": str(home),
-        "LOREKEEP_PROVIDER": "fake",
         "LOREKEEP_DEV": "0",
     }
 
@@ -34,7 +33,7 @@ def _set_env(home: Path):
 # ── Compile → MCP visibility ──────────────────────────────────────────────
 
 
-def test_raw_change_compiled_then_visible_in_mcp(tmp_path: Path, fixtures: Path, monkeypatch):
+def test_raw_change_compiled_then_visible_in_mcp(patch_make_provider, tmp_path: Path, fixtures: Path, monkeypatch):
     """Write markdown to raw/ → compile (fake) → facts.jsonl → MCP search finds new nodes."""
     home = _bootstrap_home(tmp_path)
     shutil.copy(fixtures / "schema.json", home / "schema.json")
@@ -105,7 +104,7 @@ def test_pending_journal_resolved_then_visible_in_mcp(tmp_path: Path, fixtures: 
 # ── Standalone compile preserves pending journals (PR1 fix) ───────────────
 
 
-def test_standalone_compile_preserves_pending_journals(tmp_path: Path, fixtures: Path, monkeypatch):
+def test_standalone_compile_preserves_pending_journals(patch_make_provider, tmp_path: Path, fixtures: Path, monkeypatch):
     """lorekeep compile re-merges pending journals after regenerating facts.jsonl."""
     home = _bootstrap_home(tmp_path)
     shutil.copy(fixtures / "schema.json", home / "schema.json")
@@ -150,7 +149,7 @@ def test_standalone_compile_preserves_pending_journals(tmp_path: Path, fixtures:
 # ── Full loop: raw write + journal → compile + resolve → MCP ──────────────
 
 
-def test_full_loop_compile_and_resolve_visible_in_mcp(tmp_path: Path, fixtures: Path, monkeypatch):
+def test_full_loop_compile_and_resolve_visible_in_mcp(patch_make_provider, tmp_path: Path, fixtures: Path, monkeypatch):
     """Raw markdown + pending journal → compile → both visible through MCP search."""
     home = _bootstrap_home(tmp_path)
     shutil.copy(fixtures / "schema.json", home / "schema.json")

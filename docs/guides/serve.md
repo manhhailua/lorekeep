@@ -5,9 +5,9 @@ Path resolution (env > `LOREKEEP_HOME` > dev mode > XDG) is covered in [data-hom
 ## Installed use (recommended)
 
 ```bash
-uvx lorekeep init                     # bootstrap ~/.config/lorekeep + ~/.local/share/lorekeep
+uvx lorekeep init                     # bootstrap + wire agents + compile + start daemon
 # add your docs under ~/.local/share/lorekeep/raw/<ns>/
-LOREKEEP_PROVIDER=fake uvx lorekeep compile  # (or set a real provider in config)
+uvx lorekeep compile                  # requires a real provider in config.yaml
 uvx lorekeep mcp add --agent claude --ns <ns>
 uvx lorekeep doctor
 

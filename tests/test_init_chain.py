@@ -10,7 +10,7 @@ from lorekeep.cli import app
 runner = CliRunner()
 
 
-def _setup_env(tmp_path: Path, monkeypatch, fake_provider=True):
+def _setup_env(tmp_path: Path, monkeypatch):
     home = tmp_path / "home"
     project = tmp_path / "project"
     fake_home = tmp_path / "fakehome"
@@ -24,16 +24,14 @@ def _setup_env(tmp_path: Path, monkeypatch, fake_provider=True):
     monkeypatch.setattr("lorekeep.integrations.detect.shutil.which", lambda _: None)
     monkeypatch.delenv("OPENCODE", raising=False)
     monkeypatch.delenv("CLAUDECODE", raising=False)
-    if fake_provider:
-        monkeypatch.setenv("LOREKEEP_PROVIDER", "fake")
     return home, project
 
 
 # ── Init chains into compile ──────────────────────────────────────────────
 
 
-def test_init_compiles_with_fake_provider(tmp_path: Path, monkeypatch):
-    """init --yes with LOREKEEP_PROVIDER=fake should auto-compile facts.jsonl."""
+def test_init_compiles_with_provider(patch_make_provider, tmp_path: Path, monkeypatch):
+    """init --yes with patched provider should auto-compile facts.jsonl."""
     home, project = _setup_env(tmp_path, monkeypatch)
 
     result = runner.invoke(app, ["init", "--yes", "--no-watch"])
@@ -47,7 +45,7 @@ def test_init_compiles_with_fake_provider(tmp_path: Path, monkeypatch):
 
 def test_init_skips_compile_without_api_key(tmp_path: Path, monkeypatch):
     """init --yes without provider key should skip compile gracefully."""
-    home, project = _setup_env(tmp_path, monkeypatch, fake_provider=False)
+    home, project = _setup_env(tmp_path, monkeypatch)
 
     result = runner.invoke(app, ["init", "--yes", "--no-watch"])
     assert result.exit_code == 0, result.stdout

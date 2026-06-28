@@ -13,7 +13,7 @@
 - **Golden tests:** snapshot `facts.jsonl` for a fixture corpus; diffs catch regressions.
 - Compile-only ⇒ no concurrency to test.
 
-All compile/serve/import tests set `LOREKEEP_PROVIDER=fake` to avoid a real LLM — no API key required.
+All compile/serve/import tests inject `FakeProvider` via monkeypatch to avoid a real LLM — no API key required.
 
 ## Evaluation
 

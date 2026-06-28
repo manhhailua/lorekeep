@@ -130,7 +130,6 @@ def test_watch_boots_and_shuts_down_cleanly(monkeypatch, tmp_path: Path):
     monkeypatch.setenv("LOREKEEP_OUT", str(tmp_path / "graph"))
     monkeypatch.setenv("LOREKEEP_CACHE", str(tmp_path / "cache.json"))
     monkeypatch.setenv("LOREKEEP_PENDING", str(tmp_path / "pending"))
-    monkeypatch.setenv("LOREKEEP_PROVIDER", "fake")
     monkeypatch.setenv("LOREKEEP_DEV", "1")
 
     (tmp_path / "raw").mkdir()
@@ -150,7 +149,6 @@ def test_watch_boots_and_shuts_down_cleanly(monkeypatch, tmp_path: Path):
              "LOREKEEP_OUT": str(tmp_path / "graph"),
              "LOREKEEP_CACHE": str(tmp_path / "cache.json"),
              "LOREKEEP_PENDING": str(tmp_path / "pending"),
-             "LOREKEEP_PROVIDER": "fake",
              "LOREKEEP_DEV": "1",
              "PYTHONPATH": str(Path(__file__).parent.parent / "src"),
              },
