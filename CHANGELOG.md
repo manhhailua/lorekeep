@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/manhhailua/lorekeep/compare/v0.2.1...v0.3.0) (2026-06-28)
+
+
+### Features
+
+* zero-friction init — wire, import, compile, daemon in one command ([#55](https://github.com/manhhailua/lorekeep/issues/55)) ([26e27ad](https://github.com/manhhailua/lorekeep/commit/26e27ad70e9eae90d4ac490694b891eda01b563b))
+
 ## [0.2.1](https://github.com/manhhailua/lorekeep/compare/v0.2.0...v0.2.1) (2026-06-28)
 
 
