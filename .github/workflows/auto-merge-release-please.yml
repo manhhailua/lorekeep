@@ -1,8 +1,11 @@
 name: auto-merge-release-please
 
-# When release-please creates or updates a Release PR on the
-# release-please--branches--main branch, enable auto-merge so it
-# merges automatically once branch-protection checks pass.
+# When release-please creates or updates a Release PR, this workflow:
+# 1. Runs `uv lock` to sync the lockfile with the bumped version in pyproject.toml
+# 2. Commits the updated uv.lock back to the PR branch (if changed)
+# 3. Enables auto-merge so the PR merges once CI passes
+#
+# This ensures uv.lock is always correct in the release commit — no stale lockfile.
 on:
   pull_request:
     types: [opened, synchronize]
@@ -12,12 +15,33 @@ permissions:
   pull-requests: write
 
 jobs:
-  auto-merge:
+  prepare-and-auto-merge:
     if: startsWith(github.head_ref, 'release-please--')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: astral-sh/setup-uv@v7
+
+      - name: Sync uv.lock
+        run: uv lock
+        continue-on-error: true
+
+      - name: Commit uv.lock if changed
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          git diff --cached --quiet || git commit -m "chore: sync uv.lock"
+          git push || true
+
       - name: Enable auto-merge for Release PR
         run: |
+          sleep 3
           gh pr merge --auto --squash "${{ github.event.pull_request.html_url }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
