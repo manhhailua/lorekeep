@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/manhhailua/lorekeep/compare/v0.5.0...v0.6.0) (2026-06-29)
+
+
+### Features
+
+* add Obsidian-compatible wiki output from compiled graph ([#68](https://github.com/manhhailua/lorekeep/issues/68)) ([e3e53f2](https://github.com/manhhailua/lorekeep/commit/e3e53f26f8f97c947bafe4a19485410f4deb14f6))
+
 ## [0.5.0](https://github.com/manhhailua/lorekeep/compare/v0.4.0...v0.5.0) (2026-06-28)
 
 
