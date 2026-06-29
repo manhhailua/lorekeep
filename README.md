@@ -8,7 +8,7 @@
 
 Lorekeep compiles a team's raw documentation into a versioned, time-aware
 knowledge graph (`facts.jsonl`) and exposes it to coding agents (Claude Code,
-Cursor, Codex) through the Model Context Protocol — with per-namespace
+Cursor, Codex, opencode) through the Model Context Protocol — with per-namespace
 permission and zero servers to run.
 
 It applies Andrej Karpathy's "LLM Knowledge Base" idea: raw docs are the
@@ -52,8 +52,11 @@ knowledge.
 - **Autonomous agent daemon** — `lorekeep agent watch` keeps the graph current:
   auto-compile on raw/ change, auto-resolve pending journals, delta import of
   agent session memory. Runs in the background; MCP server lazy-reloads.
-- **Lazy-reload** — graph updates (compile or resolve) are visible on the next
-  query. Connect once, use forever.
+- **Session-end hooks** — `lorekeep hook` auto-imports agent memory when a
+  session ends (Claude / Cursor / Codex / opencode). Wired by `mcp add`.
+- **Obsidian wiki** — auto-generated after every compile/resolve: human-browsable
+  markdown pages with `[[wikilinks]]`, YAML frontmatter, graph view.
+- **Lazy-reload** — graph updates visible on next query. Connect once, use forever.
 - **Provider-pluggable extraction** — litellm (OpenAI / Anthropic /
   DashScope/Qwen / Ollama). Strict-privacy → Ollama, fully local.
 - **Tier-1 eval** — extraction P/R/F1 vs a gold corpus, entity-resolution F1,
@@ -81,7 +84,7 @@ mkdir -p ~/.local/share/lorekeep/raw/backend
 cp your-docs.md ~/.local/share/lorekeep/raw/backend/
 
 # 3. set a provider (edit ~/.config/lorekeep/config.yaml), then compile
-uvx lorekeep compile                # raw/*.md -> graph/facts.jsonl
+uvx lorekeep compile                # raw/*.md → graph/facts.jsonl + wiki/
 
 # 4. wire a coding agent (writes a portable .mcp.json)
 uvx lorekeep mcp add --agent claude --ns backend
@@ -90,7 +93,7 @@ uvx lorekeep mcp add --agent claude --ns backend
 uvx lorekeep doctor
 ```
 
-Restart Claude Code → 13 Lorekeep tools are available (8 read + 5 write), scoped to your namespace.
+Restart Claude Code → 13 Lorekeep tools are available (8 read + 5 write), scoped to your namespace. Open `~/.local/share/lorekeep/wiki/` in Obsidian to browse the graph as a human.
 
 ## Lifecycle
 
@@ -102,21 +105,21 @@ The full journey from install to continuous use — see the
  ════          ═══════             ══════             ════════════          ════
  ┌─────┐   ┌──────────┐        ┌─────────┐       ┌───────────────┐    ┌────────┐
  │init │──►│raw/*.md  │──►     │mcp add  │──►    │ agent watch   │──► │backup  │
- │     │   │compile   │ compile│serve    │ serve │  raw/  → compile│   │        │
- │     │   │          │────────│         │       │  pending/ → resolve   │
- └─────┘   └──────────┘        └─────────┘       │  memory/ → import │    └────────┘
-                                   ▲             └───────┬───────┘         │
-                                   │                     │ lazy-reload     │ git sync
-                                   │◄────────────────────┘                 │
-                                   │◄──────────────────────────────────────┘
+ │     │   │compile   │ compile│serve    │ serve │  raw/    → compile   │
+ │     │   │          │────────│+hook    │       │  pending/ → resolve  │
+ └─────┘   └──────────┘   wiki │         │       │  memory/  → import   └────────┘
+                               └─────────┘       └───────┬───────┘         │
+                                    ▲                     │ lazy-reload     │ git sync
+                                    │◄────────────────────┘                 │
+                                    │◄──────────────────────────────────────┘
 ```
 
 | Step | Command | What it does |
 |---|---|---|
 | 1. Bootstrap | `lorekeep init` | Create data home (config + schema + dirs) |
 | 2. Curate | `raw/<ns>/*.md` | Drop markdown docs under namespace dirs |
-| 3. Compile | `lorekeep compile` | LLM-extract facts → `facts.jsonl` (cached, deterministic) |
-| 4. Wire agent | `lorekeep mcp add --agent claude --ns <ns>` | Write `.mcp.json`, scoped to namespace |
+| 3. Compile | `lorekeep compile` | LLM-extract → `facts.jsonl` + `wiki/` (cached, deterministic) |
+| 4. Wire agent | `lorekeep mcp add --agent claude --ns <ns>` | Write `.mcp.json` + session-end hook, scoped to namespace |
 | 5. Verify | `lorekeep doctor` | Graph loads, schema valid, tool responds |
 | 6. Serve | `lorekeep serve` | MCP server (8 read + 5 write tools, lazy-reload) |
 | 7. Keep current | `lorekeep agent watch &` | Daemon: auto-compile, auto-resolve, delta-import sessions |
@@ -134,9 +137,9 @@ raw/<ns>/*.md ──► ingest ──► extract(LLM) ──┐
                                             │
 agent propose ──► MCP write tools ──► ──────┤
   (ZERO LLM cost, journal append)           │
-                                            ├──► resolve ──► writer ──► facts.jsonl
-import ──► raw/ ──► compile ────────────────┘    (pure logic,          │
-                                                   ZERO LLM)            │
+                                            ├──► resolve ──► writer ──► facts.jsonl ──► wiki/*.md
+import ──► raw/ ──► compile ────────────────┘    (pure logic,    (sorted)       (Obsidian)
+                                                   ZERO LLM)
                                                         ┌───────────────┘
                                                         ▼ (git / S3 sync)
                SERVE + QUERY (runtime, per device)
@@ -150,7 +153,7 @@ facts.jsonl ──load──► GraphStore ──► ScopedGraph(ns) ──► M
                lorekeep agent watch:
                  ├── watch raw/ → auto-compile
                  ├── watch pending/ → auto-resolve
-                 └── watch Claude memory/ → delta import → raw/
+                 └── watch agent memory/ → delta import → raw/
 ```
 
 **Three write paths → one resolve**: markdown is compiled by an LLM (chunked + cached); agents propose facts at runtime through MCP write tools at **zero marginal LLM cost** (the agent already ran the LLM for the conversation); agent sessions are imported into raw/. All converge at `resolve` — pure Python logic that merges, deduplicates, validates, and writes byte-stable `facts.jsonl`.
@@ -183,7 +186,7 @@ that began/ended in the window).
 
 **Agent-driven knowledge** — agents propose facts at runtime through MCP write tools (zero LLM cost). Facts land in `pending/<ns>/journal.jsonl` with agent id, confidence score, and timestamp. Resolve merges them into the graph: high-confidence (≥0.8) auto-merge, medium (0.5-0.8) merge + flag, low (<0.5) quarantine.
 
-**Autonomous agent daemon** — `lorekeep agent watch` keeps the graph current: watches `raw/` for changes → auto-compile; monitors `pending/` → auto-resolve; delta-imports Claude session memory into `raw/`. Scheduled lint and weekly suggestions are planned. See [docs/architecture/agent.md](docs/architecture/agent.md).
+**Autonomous agent daemon** — `lorekeep agent watch` keeps the graph current: watches `raw/` for changes → auto-compile; monitors `pending/` → auto-resolve; delta-imports agent session memory (Claude / Cursor / Codex / opencode) into `raw/`. Session-end hooks auto-trigger `lorekeep hook` when the agent exits. Scheduled lint and weekly suggestions are planned. See [docs/architecture/agent.md](docs/architecture/agent.md).
 
 ## MCP tools (8 read + 5 write, scoped)
 
@@ -241,17 +244,18 @@ src/lorekeep/
   defaults.py          default schema + config (for `init`)
   config.py, schema_io.py
   compile/{ingest,extract,resolve,writer}.py    the compile pipeline
-  compile/providers.py                          LLMProvider (Fake/LiteLLM)
+  compile/providers.py                          LiteLLMProvider (OpenAI/Anthropic/Ollama)
   journal.py           append-only journal writer + loader
   agent.py             autonomous agent: ingest, lint, suggest, status, watch
   store/{graph,fts}.py                          GraphStore + optional FTS cache
   perm/ns.py                                    ScopedGraph permission chokepoint
   mcp_server.py                                 FastMCP + 8 read + 5 write tools
   wiki.py                                        Obsidian-compatible wiki generator
+  importer/{claude,cursor,codex,opencode}.py    agent session → raw/ importers
   integrations/{claude_code,cursor,codex,opencode,common}.py
   pipeline.py, cli.py
   eval/{gold,construction,retrieval}.py
-tests/                 ~140 tests
+tests/                 ~310 tests
 docs/                  README.md index, architecture/, guides/
 ```
 
