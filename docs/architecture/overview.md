@@ -48,8 +48,8 @@ Lorekeep exists to let an agent reason about a domain **systematically and with 
               facts.jsonl                       THE store (sorted, byte-stable)
                     │
                     ├──► wiki/*.md               human view (Obsidian-compatible)
-                    │     entities/, index.md,
-                    │     overview.md, log.md
+                    │     atomic swap, regen on
+                    │     every facts mutation
                     │
                     ▼  (git / S3 sync)
     ┌───────────────────────────────────────────┐

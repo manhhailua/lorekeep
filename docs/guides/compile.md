@@ -36,12 +36,16 @@ uv run lorekeep compile
 ```
 
 Produces `graph/facts.jsonl` + `graph/manifest.json` + auto-generates `wiki/`
-(Obsidian-compatible markdown). Re-running is idempotent:
-unchanged input yields byte-identical files (extraction is cached under
-`.lorekeep/cache.json`).
+(Obsidian-compatible markdown, regenerated atomically). If `pending/`
+journals exist, compile also merges them via `_do_auto_resolve` — in that
+case wiki regenerates once from the resolved facts (never double).
+Re-running is idempotent: unchanged input yields byte-identical files
+(extraction is cached under `.lorekeep/cache.json`).
 
 **What compile does not do:** compile processes only `raw/`. Agent-proposed
 facts in `pending/` journals are merged by `resolve` (see step 5).
+Compile does re-merge pending journals as a convenience, but standalone
+`resolve` is needed if you add journals after compile.
 
 ## 4. Resolve pending facts (manual)
 
@@ -51,7 +55,8 @@ uv run lorekeep resolve
 
 Merges all pending agent-proposed facts from `pending/` journals into `facts.jsonl`.
 Facts are gated by confidence: high (≥0.8) auto-merge, medium (0.5-0.8) merge
-with review flag, low (<0.5) quarantine.
+with review flag, low (<0.5) quarantine. Wiki regenerates only if facts
+actually changed (`merge_count > 0` or `flagged_count > 0`).
 
 Resolve also runs automatically: the daemon (`lorekeep agent watch`) detects
 new pending entries on every poll cycle (default 60s interval).

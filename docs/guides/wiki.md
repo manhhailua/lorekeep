@@ -28,9 +28,9 @@ The wiki is a **derived artifact** — fully regenerable from `facts.jsonl`, nev
 
 ```
 raw/*.md → compile → facts.jsonl → wiki/*.md
-                         ↑                ↓
-                    agent queries     human browses
-                    (MCP tools)      (Obsidian)
+                          ↑                ↓
+                     agent queries     human browses
+                     (MCP tools)      (Obsidian)
 ```
 
 | Consumer | Reads | Format |
@@ -38,7 +38,22 @@ raw/*.md → compile → facts.jsonl → wiki/*.md
 | Agent (MCP) | `facts.jsonl` | JSONL — structured queries, temporal, ns-scoped |
 | Human (Obsidian) | `wiki/` | Markdown — browsable, searchable, graph view |
 
-Both are always in sync because `compile` auto-generates the wiki after every run.
+### When wiki regenerates
+
+Wiki regenerates on **every `facts.jsonl` mutation**:
+
+| Trigger | Who | Wiki regen? |
+|---|---|---|
+| `compile` (raw → facts.jsonl) | Curator | Yes — single regen at end |
+| `compile` + pending resolve | Curator | Yes — `_do_auto_resolve` regens if merge happened; otherwise compile's own regen covers it. **Never double.** |
+| `resolve` (manual, merge happened) | Curator | Yes — gated on `merge_count > 0` or `flagged_count > 0` |
+| `resolve` (quarantine-only, no merge) | Curator | No — facts.jsonl unchanged |
+| Daemon auto-resolve (merge) | Daemon | Yes — `_do_auto_resolve` regens on actual merge |
+| `lorekeep wiki` (manual) | Human | Yes — force regen |
+
+### Atomic swap
+
+Wiki pages build into a temp sibling directory (`.wiki-build.tmp`), then `os.rename` swaps it into place. The wiki directory is **never partially populated** — Obsidian always sees either the old or the new version, never a mix. This is safe even with the vault open during regeneration.
 
 ## Output structure
 
@@ -56,23 +71,20 @@ wiki/
 
 Each node becomes a markdown page with:
 
-- **YAML frontmatter** — `id`, `type`, `ns`, `valid_from`, `valid_to`, `sources`, `tags` (Obsidian Dataview compatible)
-- **Properties table** — all node `props` as key-value rows
-- **Relationships** — outgoing and incoming edges as `[[wikilinks]]`, grouped by edge type
-- **Timeline** — `valid_from` / `valid_to` dates
+- **YAML frontmatter** — `id`, `type`, `ns`, `valid_from`, `valid_to`, `sources`, `tags` (Obsidian Dataview compatible). All scalars are quoted so IDs containing colons (`svc:payments-api`) parse correctly.
 
 Example entity page (`entities/service/svc-payments-api.md`):
 
 ```markdown
 ---
-id: svc:payments-api
-type: service
-ns: [backend]
-valid_from: 2024-01-15
-valid_to: null
+id: "svc:payments-api"
+type: "service"
+ns: ["backend"]
+valid_from: "2024-01-15"
+valid_to: ""
 sources:
-  - raw/backend/payments.md:3
-tags: [service, backend, entity]
+  - "raw/backend/payments.md:3"
+tags: ["service", "backend", "entity"]
 ---
 
 # payments-api
@@ -97,6 +109,14 @@ tags: [service, backend, entity]
 - **2024-01-15**: Valid from
 ```
 
+### Properties table
+
+Pipe characters in values are escaped (`\|`), newlines collapsed to spaces, and non-string values (integers, booleans, lists) serialized via `json.dumps` — preventing table corruption.
+
+### Slug naming
+
+Node IDs are sanitized to filename-safe slugs for wikilinks (`:` → `-`, `/` → `-`). If two distinct node IDs collide to the same slug, `generate_wiki` raises `ValueError` rather than silently overwriting.
+
 ### index.md
 
 Catalog of all entities, grouped by node type (`## Services`, `## Teams`, `## Decisions`). Each entry is a `[[wikilink]]` with a one-line summary.
@@ -107,7 +127,7 @@ Graph-level dashboard: node/edge counts by type, temporal range, namespace break
 
 ### log.md
 
-Append-only log of wiki generation events:
+Append-only log of wiki generation events. **Preserved across regenerations** — prior entries survive verbatim. Counts come from the live `GraphStore`, not the (potentially stale) manifest:
 
 ```
 ## [2026-06-29T21:53:00Z] wiki | run_id=abc123, 4 nodes, 2 edges
@@ -126,14 +146,22 @@ Append-only log of wiki generation events:
 ## CLI
 
 ```bash
-lorekeep wiki          # regenerate wiki/ from facts.jsonl
+lorekeep wiki          # regenerate wiki/ from facts.jsonl (force)
 ```
 
-Wiki generation also runs automatically after `compile` and after daemon-triggered resolve passes — you never need to run it manually unless you want to force a refresh.
+Wiki generation also runs automatically after every `facts.jsonl` mutation:
+
+- **`compile`** — always regens (unless `_do_auto_resolve` already regend after merging pending journals; never double).
+- **`resolve`** — regens only if facts actually changed (`merge_count > 0` or `flagged_count > 0`). Quarantine-only resolves skip wiki regen.
+- **Daemon auto-resolve** — regens on actual merge (`_do_auto_resolve` returns `True`).
+
+You never need to run `lorekeep wiki` manually unless you want to force a refresh.
 
 ## Determinism
 
 Re-generating the wiki from unchanged `facts.jsonl` yields **byte-identical** pages (entity pages, index, overview). The only exception is `log.md`, which is append-only by design.
+
+Wiki generation is **best-effort** — if it fails (e.g. slug collision, disk error), the triggering command (`compile`, `resolve`) still succeeds. `facts.jsonl` is never blocked by a wiki failure.
 
 ## Path resolution
 
