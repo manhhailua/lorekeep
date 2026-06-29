@@ -126,10 +126,10 @@ class TestGenerateWiki:
         generate_wiki(graph_dir, wiki_dir)
         page = (wiki_dir / "entities" / "service" / "svc-payments-api.md").read_text()
         assert page.startswith("---")
-        assert "id: svc:payments-api" in page
-        assert "type: service" in page
-        assert "ns: [backend]" in page
-        assert "valid_from: 2024-01-15" in page
+        assert 'id: "svc:payments-api"' in page
+        assert 'type: "service"' in page
+        assert 'ns: ["backend"]' in page
+        assert 'valid_from: "2024-01-15"' in page
         assert "sources:" in page
         assert "raw/backend/payments.md:3" in page
         assert "tags:" in page
@@ -349,3 +349,229 @@ class TestWikiCLI:
 
         wiki_after = (home / "wiki" / "log.md").read_text()
         assert wiki_after.count("## [") == wiki_before.count("## [") + 1
+
+
+# ── Review-requested tests ─────────────────────────────────────────────────
+
+
+class TestSyncInvariant:
+    """Every node → entity page, every edge → wikilink on both endpoints."""
+
+    def test_every_node_has_entity_page(self, graph_dir, wiki_dir):
+        generate_wiki(graph_dir, wiki_dir)
+        from lorekeep.facts_io import read_facts
+        from lorekeep.models import Node as NodeT
+        for line in (graph_dir / "facts.jsonl").read_text().splitlines():
+            d = json.loads(line)
+            if d["kind"] != "node":
+                continue
+            slug = _slug(d["id"])
+            page = wiki_dir / "entities" / d["type"] / f"{slug}.md"
+            assert page.exists(), f"missing entity page for {d['id']}"
+
+    def test_every_edge_has_wikilinks(self, graph_dir, wiki_dir):
+        generate_wiki(graph_dir, wiki_dir)
+        for line in (graph_dir / "facts.jsonl").read_text().splitlines():
+            d = json.loads(line)
+            if d["kind"] != "edge":
+                continue
+            from_slug = _slug(d["from"])
+            to_slug = _slug(d["to"])
+            from_page = (wiki_dir / "entities").rglob(f"{from_slug}.md")
+            to_page = (wiki_dir / "entities").rglob(f"{to_slug}.md")
+            from_pg = next(from_page, None)
+            to_pg = next(to_page, None)
+            assert from_pg, f"source page {from_slug} missing"
+            assert to_pg, f"target page {to_slug} missing"
+            assert f"[[{to_slug}]]" in from_pg.read_text(), \
+                f"edge {d['id']}: [[{to_slug}]] missing on source page"
+            assert f"[[{from_slug}]]" in to_pg.read_text(), \
+                f"edge {d['id']}: [[{from_slug}]] missing on target page"
+
+
+class TestYAMLFrontmatter:
+    def test_frontmatter_parses_as_yaml(self, graph_dir, wiki_dir):
+        generate_wiki(graph_dir, wiki_dir)
+        import yaml
+        page = (wiki_dir / "entities" / "service" / "svc-payments-api.md").read_text()
+        fm_block = page.split("---")[1]
+        data = yaml.safe_load(fm_block)
+        assert data["id"] == "svc:payments-api"
+        assert data["type"] == "service"
+        assert data["ns"] == ["backend"]
+        assert data["valid_from"] == "2024-01-15"
+        assert data["sources"] == ["raw/backend/payments.md:3"]
+        assert "entity" in data["tags"]
+
+    def test_frontmatter_null_dates(self, graph_dir, wiki_dir):
+        generate_wiki(graph_dir, wiki_dir)
+        import yaml
+        page = (wiki_dir / "entities" / "service" / "svc-auth.md").read_text()
+        fm_block = page.split("---")[1]
+        data = yaml.safe_load(fm_block)
+        assert data["valid_from"] == ""
+
+
+class TestEmptyGraph:
+    def test_empty_graph_no_crash(self, tmp_path):
+        graph = tmp_path / "graph"
+        graph.mkdir()
+        (graph / "facts.jsonl").write_text("")
+        wiki = tmp_path / "wiki"
+        result = generate_wiki(graph, wiki)
+        assert result["nodes"] == 0
+        assert result["edges"] == 0
+        assert (wiki / "index.md").exists()
+        assert (wiki / "overview.md").exists()
+        assert (wiki / "log.md").exists()
+
+
+class TestPropsSpecialChars:
+    def test_pipe_in_prop_value(self, tmp_path):
+        node = Node(
+            id="svc:test", type="service", ns=("test",),
+            props={"filter": "a | b", "name": "test"},
+        )
+        graph = tmp_path / "graph"
+        from lorekeep.compile.writer import write_graph
+        write_graph(graph, [node], [], Manifest(
+            schema_version=1, chunk_count=0, node_count=1, edge_count=0,
+            run_id="x", facts_hash="y",
+        ))
+        wiki = tmp_path / "wiki"
+        generate_wiki(graph, wiki)
+        page = (wiki / "entities" / "service" / "svc-test.md").read_text()
+        assert "a \\| b" in page
+
+    def test_newline_in_prop_value(self, tmp_path):
+        node = Node(
+            id="svc:multiline", type="service", ns=("test",),
+            props={"desc": "line1\nline2", "name": "multiline"},
+        )
+        graph = tmp_path / "graph"
+        from lorekeep.compile.writer import write_graph
+        write_graph(graph, [node], [], Manifest(
+            schema_version=1, chunk_count=0, node_count=1, edge_count=0,
+            run_id="x", facts_hash="y",
+        ))
+        wiki = tmp_path / "wiki"
+        generate_wiki(graph, wiki)
+        page = (wiki / "entities" / "service" / "svc-multiline.md").read_text()
+        assert "line1 line2" in page
+        assert "\nline2 |" not in page
+
+    def test_non_string_prop_value(self, tmp_path):
+        node = Node(
+            id="svc:typed", type="service", ns=("test",),
+            props={"port": 8080, "enabled": True, "name": "typed"},
+        )
+        graph = tmp_path / "graph"
+        from lorekeep.compile.writer import write_graph
+        write_graph(graph, [node], [], Manifest(
+            schema_version=1, chunk_count=0, node_count=1, edge_count=0,
+            run_id="x", facts_hash="y",
+        ))
+        wiki = tmp_path / "wiki"
+        generate_wiki(graph, wiki)
+        page = (wiki / "entities" / "service" / "svc-typed.md").read_text()
+        assert "8080" in page
+        assert "true" in page
+
+
+class TestSlugCollision:
+    def test_slug_collision_raises(self, tmp_path):
+        nodes = [
+            Node(id="svc:auth", type="service", ns=("t",), props={"name": "a"}),
+            Node(id="svc/auth", type="service", ns=("t",), props={"name": "b"}),
+        ]
+        graph = tmp_path / "graph"
+        from lorekeep.compile.writer import write_graph
+        write_graph(graph, nodes, [], Manifest(
+            schema_version=1, chunk_count=0, node_count=2, edge_count=0,
+            run_id="x", facts_hash="y",
+        ))
+        wiki = tmp_path / "wiki"
+        with pytest.raises(ValueError, match="slug collision"):
+            generate_wiki(graph, wiki)
+
+
+class TestWikiFailureSafe:
+    def test_wiki_failure_does_not_crash_compile(self, tmp_path, monkeypatch, patch_make_provider):
+        from lorekeep.cli import app
+
+        home = tmp_path / "home"
+        home.mkdir()
+        (home / "raw" / "backend").mkdir(parents=True)
+        (home / "raw" / "backend" / "payments.md").write_text(
+            "# Payments API\n\npayments-api (go) depends on auth.\n"
+        )
+        (home / "schema.json").write_text(
+            json.dumps({
+                "version": 1,
+                "node_types": {"service": {"props": {"name": "string", "lang": "string"}}},
+                "edge_types": {"depends_on": {"from": "service", "to": "service"}},
+            })
+        )
+        monkeypatch.setenv("LOREKEEP_HOME", str(home))
+        monkeypatch.setattr(
+            "lorekeep.wiki.generate_wiki",
+            lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")),
+        )
+
+        result = runner.invoke(app, ["compile"])
+        assert result.exit_code == 0, result.stdout
+        assert (home / "graph" / "facts.jsonl").exists()
+
+
+class TestLogIntegrity:
+    def test_log_preserves_prior_entries_verbatim(self, graph_dir, wiki_dir):
+        generate_wiki(graph_dir, wiki_dir)
+        log1 = (wiki_dir / "log.md").read_text()
+        first_entry = log1.split("\n\n")[-1] if "## [" in log1 else ""
+
+        generate_wiki(graph_dir, wiki_dir)
+        log2 = (wiki_dir / "log.md").read_text()
+
+        assert log1 in log2
+        assert log2.count("## [") == 2
+
+
+class TestCompileSingleRegen:
+    def test_compile_with_pending_single_log_entry(self, tmp_path, monkeypatch, patch_make_provider):
+        """compile + pending resolve should produce exactly one new log entry."""
+        from lorekeep.cli import app
+        from lorekeep.journal import append_journal
+        from lorekeep.models import JournalEntry
+
+        home = tmp_path / "home"
+        home.mkdir()
+        (home / "raw" / "backend").mkdir(parents=True)
+        (home / "raw" / "backend" / "payments.md").write_text(
+            "# Payments API\n\npayments-api (go) depends on auth.\n"
+        )
+        (home / "pending" / "backend").mkdir(parents=True)
+        (home / "schema.json").write_text(
+            json.dumps({
+                "version": 1,
+                "node_types": {"service": {"props": {"name": "string", "lang": "string"}}},
+                "edge_types": {"depends_on": {"from": "service", "to": "service"}},
+            })
+        )
+        monkeypatch.setenv("LOREKEEP_HOME", str(home))
+
+        append_journal(
+            home / "pending",
+            JournalEntry(
+                fact={"kind": "node", "id": "svc:pre", "type": "service",
+                      "ns": ["backend"], "props": {"name": "pre"}},
+                agent="test", ns="backend", confidence=0.9,
+                proposed_at="2026-06-29T00:00:00Z",
+            ),
+            "backend",
+        )
+
+        result = runner.invoke(app, ["compile"])
+        assert result.exit_code == 0, result.stdout
+
+        log = (home / "wiki" / "log.md").read_text()
+        assert log.count("## [") == 1, f"expected 1 log entry, got {log.count('## [')}"

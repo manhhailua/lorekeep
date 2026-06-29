@@ -111,10 +111,12 @@ def compile() -> None:
                f"run_id={manifest.run_id}, facts_hash={manifest.facts_hash}")
 
     pending_dir = p.get("pending")
+    resolved = False
     if pending_dir and pending_dir.exists():
-        _do_auto_resolve(p["out"], pending_dir, p.get("wiki"))
+        resolved = _do_auto_resolve(p["out"], pending_dir, p.get("wiki"))
 
-    _auto_generate_wiki(p["out"], p["wiki"])
+    if not resolved:
+        _auto_generate_wiki(p["out"], p["wiki"])
 
 
 @app.command()
@@ -252,7 +254,8 @@ def resolve(
         f"{merged.quarantine_count} quarantined"
     )
 
-    _auto_generate_wiki(p["out"], p["wiki"])
+    if merged.merge_count > 0 or merged.flagged_count > 0:
+        _auto_generate_wiki(p["out"], p["wiki"])
 
 
 @app.command()
@@ -1198,11 +1201,13 @@ def watch(
             time.sleep(interval)
 
 
-def _do_auto_resolve(out_dir: Path, pending_dir: Path, wiki_dir: Path | None = None) -> None:
+def _do_auto_resolve(out_dir: Path, pending_dir: Path, wiki_dir: Path | None = None) -> bool:
     """Merge pending journal entries into facts.jsonl.
 
     Extracted as a helper so both the pending/ watch loop and the
     post-compile re-merge path share the same logic.
+
+    Returns True if facts.jsonl was rewritten (merge happened).
     """
     try:
         from lorekeep.facts_io import read_facts
@@ -1253,8 +1258,10 @@ def _do_auto_resolve(out_dir: Path, pending_dir: Path, wiki_dir: Path | None = N
 
             if wiki_dir:
                 _auto_generate_wiki(out_dir, wiki_dir)
+            return True
     except Exception as exc:
         typer.echo(f"agent: resolve error: {exc}")
+    return False
 
 
 def _auto_generate_wiki(graph_dir: Path, wiki_dir: Path) -> None:

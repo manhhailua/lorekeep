@@ -16,10 +16,14 @@ Output structure:
 """
 from __future__ import annotations
 
+import json
+import os
 import re
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+from lorekeep.compile.writer import _atomic_write
 from lorekeep.models import Edge, Manifest, Node
 from lorekeep.store.graph import GraphStore
 
@@ -31,6 +35,19 @@ def _slug(node_id: str) -> str:
     so the slug is round-trippable within a wiki build.
     """
     return re.sub(r"[:/]", "-", node_id)
+
+
+def _yaml_scalar(value: str) -> str:
+    """Quote a YAML scalar so special chars (colon, etc.) are safe."""
+    if value is None:
+        return "null"
+    return json.dumps(str(value))
+
+
+def _yaml_list(items: list[str]) -> str:
+    if not items:
+        return "[]"
+    return "[" + ", ".join(json.dumps(str(i)) for i in items) + "]"
 
 
 def _fmt_date(d) -> str:
@@ -51,23 +68,26 @@ def _fmt_validity(valid_from, valid_to) -> str:
     return "always"
 
 
-def _yaml_list(items: list[str], indent: str = "") -> str:
-    if not items:
-        return "[]"
-    return "[" + ", ".join(items) + "]"
+def _fmt_prop_value(val) -> str:
+    """Format a prop value for markdown table cell — escape pipes, collapse newlines."""
+    if isinstance(val, str):
+        s = val.replace("|", "\\|").replace("\n", " ")
+    else:
+        s = json.dumps(val, ensure_ascii=False).replace("|", "\\|").replace("\n", " ")
+    return s
 
 
 def _frontmatter(node: Node) -> str:
     lines = ["---"]
-    lines.append(f"id: {node.id}")
-    lines.append(f"type: {node.type}")
+    lines.append(f"id: {_yaml_scalar(node.id)}")
+    lines.append(f"type: {_yaml_scalar(node.type)}")
     lines.append(f"ns: {_yaml_list(list(node.ns))}")
-    lines.append(f"valid_from: {_fmt_date(node.valid_from) or 'null'}")
-    lines.append(f"valid_to: {_fmt_date(node.valid_to) or 'null'}")
+    lines.append(f"valid_from: {_yaml_scalar(_fmt_date(node.valid_from))}")
+    lines.append(f"valid_to: {_yaml_scalar(_fmt_date(node.valid_to))}")
     if node.src:
         lines.append("sources:")
         for s in node.src:
-            lines.append(f"  - {s}")
+            lines.append(f"  - {json.dumps(str(s))}")
     else:
         lines.append("sources: []")
     tags = [node.type] + list(node.ns) + ["entity"]
@@ -81,7 +101,7 @@ def _props_table(node: Node) -> str:
         return ""
     lines = ["", "## Properties", "", "| Key | Value |", "|---|---|"]
     for key in sorted(node.props):
-        lines.append(f"| {key} | {node.props[key]} |")
+        lines.append(f"| {_fmt_prop_value(key)} | {_fmt_prop_value(node.props[key])} |")
     return "\n".join(lines)
 
 
@@ -106,7 +126,7 @@ def _relationships(
     if in_edges:
         if not out_edges:
             sections.extend(["", "## Relationships", ""])
-        by_type: dict[str, list[Edge]] = {}
+        by_type = {}
         for e in in_edges:
             by_type.setdefault(e.type, []).append(e)
         for etype in sorted(by_type):
@@ -131,10 +151,7 @@ def _timeline(node: Node) -> str:
     return "\n".join(lines)
 
 
-def _entity_page(
-    node: Node,
-    store: GraphStore,
-) -> str:
+def _entity_page(node: Node, store: GraphStore) -> str:
     title = node.props.get("name", node.id)
     out_e = store.out_edges(node.id)
     in_e = store.in_edges(node.id)
@@ -155,17 +172,17 @@ def _entity_page(
 
 def _index_page(store: GraphStore) -> str:
     nodes = store.all_nodes()
-    edges = store.all_edges()
+    edge_count = store._G.number_of_edges()
 
     lines = [
         "---",
         "type: index",
-        f"tags: [index, lorekeep-wiki]",
+        "tags: [index, lorekeep-wiki]",
         "---",
         "",
         "# Lorekeep Wiki \u2014 Index",
         "",
-        f"Nodes: {len(nodes)} | Edges: {len(edges)}",
+        f"Nodes: {len(nodes)} | Edges: {edge_count}",
         "",
     ]
 
@@ -254,10 +271,7 @@ def _overview_page(store: GraphStore, manifest: Manifest | None) -> str:
     for e in edges:
         all_ns.update(e.ns)
     if all_ns:
-        lines.extend([
-            "## Namespaces",
-            "",
-        ])
+        lines.extend(["## Namespaces", ""])
         for ns in sorted(all_ns):
             node_count = sum(1 for n in nodes if ns in n.ns)
             lines.append(f"- `{ns}` ({node_count} nodes)")
@@ -266,22 +280,28 @@ def _overview_page(store: GraphStore, manifest: Manifest | None) -> str:
     return "\n".join(lines)
 
 
-def _write_atomic(path: Path, content: str) -> None:
-    import os
-    import tempfile
+def _atomic_dir_swap(wiki_dir: Path, build_dir: Path) -> None:
+    """Atomically swap build_dir into wiki_dir.
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(content)
-        os.replace(tmp, path)
-    except BaseException:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+    On POSIX: rename old wiki to .old, rename new to wiki, rmtree old.
+    Never leaves wiki_dir partially populated.
+    """
+    parent = wiki_dir.parent
+    parent.mkdir(parents=True, exist_ok=True)
+
+    old_backup: Path | None = None
+    if wiki_dir.exists():
+        old_backup = wiki_dir.with_suffix(".wiki-old.tmp")
+        if old_backup.exists():
+            import shutil
+            shutil.rmtree(old_backup)
+        os.rename(wiki_dir, old_backup)
+
+    os.rename(build_dir, wiki_dir)
+
+    if old_backup is not None and old_backup.exists():
+        import shutil
+        shutil.rmtree(old_backup)
 
 
 def generate_wiki(
@@ -291,8 +311,8 @@ def generate_wiki(
 ) -> dict:
     """Generate Obsidian-compatible wiki pages from facts.jsonl.
 
-    Clears and regenerates all entity/index/overview pages.
-    Appends to log.md (the only non-deterministic file).
+    Builds into a temp sibling directory, then atomically swaps into place.
+    Appends to log.md (the only non-deterministic file, preserved across regen).
 
     Returns a summary dict with counts.
     """
@@ -306,40 +326,52 @@ def generate_wiki(
             manifest = Manifest.from_json(manifest_path.read_text(encoding="utf-8"))
 
     store = GraphStore.from_jsonl(facts_path)
+    nodes = store.all_nodes()
+    edges = store.all_edges()
 
     existing_log = ""
     if (wiki_dir / "log.md").exists():
         existing_log = (wiki_dir / "log.md").read_text(encoding="utf-8")
 
-    if wiki_dir.exists():
+    build_dir = wiki_dir.parent / ".wiki-build.tmp"
+    if build_dir.exists():
         import shutil
-        shutil.rmtree(wiki_dir)
-    wiki_dir.mkdir(parents=True, exist_ok=True)
+        shutil.rmtree(build_dir)
+    build_dir.mkdir(parents=True, exist_ok=True)
 
-    for node in sorted(store.all_nodes(), key=lambda n: (n.type, n.id)):
+    slug_map: dict[str, str] = {}
+    for node in nodes:
+        slug = _slug(node.id)
+        if slug in slug_map and slug_map[slug] != node.id:
+            raise ValueError(
+                f"slug collision: nodes {slug_map[slug]!r} and {node.id!r} "
+                f"both slug to {slug!r}"
+            )
+        slug_map[slug] = node.id
+
+    for node in sorted(nodes, key=lambda n: (n.type, n.id)):
         page = _entity_page(node, store)
         slug = _slug(node.id)
-        entity_path = wiki_dir / "entities" / node.type / f"{slug}.md"
-        _write_atomic(entity_path, page)
+        entity_path = build_dir / "entities" / node.type / f"{slug}.md"
+        _atomic_write(entity_path, page)
 
-    _write_atomic(wiki_dir / "index.md", _index_page(store))
-    _write_atomic(wiki_dir / "overview.md", _overview_page(store, manifest))
+    _atomic_write(build_dir / "index.md", _index_page(store))
+    _atomic_write(build_dir / "overview.md", _overview_page(store, manifest))
 
-    log_path = wiki_dir / "log.md"
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     run_id = manifest.run_id if manifest else "unknown"
-    node_count = manifest.node_count if manifest else 0
-    edge_count = manifest.edge_count if manifest else 0
     entry = (
         f"## [{now}] wiki | run_id={run_id}, "
-        f"{node_count} nodes, {edge_count} edges\n"
+        f"{len(nodes)} nodes, {len(edges)} edges\n"
     )
     if not existing_log:
         existing_log = "# Lorekeep Wiki \u2014 Log\n\n"
-    log_path.write_text(existing_log + entry, encoding="utf-8")
+    _atomic_write(build_dir / "log.md", existing_log + entry)
+
+    _atomic_dir_swap(wiki_dir, build_dir)
 
     return {
-        "nodes": len(store.all_nodes()),
-        "edges": len(store.all_edges()),
-        "pages": len(store.all_nodes()) + 2,
+        "nodes": len(nodes),
+        "edges": len(edges),
+        "pages": len(nodes) + 2,
     }
