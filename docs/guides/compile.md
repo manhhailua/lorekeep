@@ -35,8 +35,9 @@ provider:
 uv run lorekeep compile
 ```
 
-Produces `graph/facts.jsonl` + `graph/manifest.json`. Re-running is idempotent:
-unchanged input yields a byte-identical file (extraction is cached under
+Produces `graph/facts.jsonl` + `graph/manifest.json` + auto-generates `wiki/`
+(Obsidian-compatible markdown). Re-running is idempotent:
+unchanged input yields byte-identical files (extraction is cached under
 `.lorekeep/cache.json`).
 
 **What compile does not do:** compile processes only `raw/`. Agent-proposed
@@ -95,7 +96,8 @@ the next resolve.
 
 ## Next: serve to agents
 
-See [serve.md](serve.md) to expose the graph to Claude Code / Cursor / Codex over MCP.
+See [serve.md](serve.md) to expose the graph to Claude Code / Cursor / Codex over MCP,
+or [wiki.md](wiki.md) to browse the graph as Obsidian markdown.
 
 ## Data home
 

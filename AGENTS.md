@@ -25,12 +25,13 @@ uv run lorekeep <command>                    # run the CLI in dev mode
 | Command | Purpose |
 |---|---|
 | `init` | Bootstrap data home (config + schema + raw/graph dirs) |
-| `compile` | `raw/*.md` → `graph/facts.jsonl` + `manifest.json` (runs the LLM pipeline) |
+| `compile` | `raw/*.md` → `graph/facts.jsonl` + `manifest.json` + `wiki/` (runs the LLM pipeline, auto-generates wiki) |
 | `check` | Validate compiled graph loads, no dangling edges (exit 1 on failure) |
 | `eval` | Tier-1 construction P/R/F1 vs gold corpus + structure metrics |
+| `wiki` | Regenerate `wiki/` from `facts.jsonl` (Obsidian-compatible markdown) |
 | `serve [--transport stdio\|http]` | Run the MCP server (8 read + 5 write tools) |
 | `mcp add --agent claude\|cursor\|codex\|opencode --ns NS` | Write agent MCP config |
-| `import --from claude\|cursor` | Import agent sessions into `raw/` (claude: quick+deep; cursor: deep-only) |
+| `import --from claude\|cursor\|codex\|opencode` | Import agent sessions into `raw/` |
 | `doctor` | Verify install: graph loads, schema valid, a tool responds |
 | `backup [--init <remote-url>]` | Commit + push `.lorekeep/` to your private backup git repo |
 | `version` | Print version |
@@ -40,11 +41,11 @@ uv run lorekeep <command>                    # run the CLI in dev mode
 ## Architecture: two strictly separated phases
 
 ```
-COMPILE (offline, curator):  raw/<ns>/*.md → ingest → extract(LLM) → resolve → writer → facts.jsonl
+COMPILE (offline, curator):  raw/<ns>/*.md → ingest → extract(LLM) → resolve → writer → facts.jsonl → wiki/
 SERVE   (runtime, per device): facts.jsonl → GraphStore → ScopedGraph(ns) → MCP → agent
 ```
 
-`compile` mutates `facts.jsonl`; `serve` reads it and lazily reloads on mtime change. Write tools (propose_fact, link_facts, etc.) append to `pending/` journals; resolve merges them into the graph.
+`compile` mutates `facts.jsonl` and auto-generates `wiki/`; `serve` reads `facts.jsonl` and lazily reloads on mtime change. Write tools (propose_fact, link_facts, etc.) append to `pending/` journals; resolve merges them into the graph.
 
 ### Compile pipeline (`src/lorekeep/compile/`, orchestrated by `pipeline.py`)
 `ingest` chunks markdown with `path:line` provenance → `extract` calls the LLM provider for schema-constrained nodes/edges/aliases (per-chunk SHA-256 hash cache → unchanged chunks return cached output, giving byte-stable recompiles) → `resolve` collapses alias variants to canonical entities and quarantines invalid facts → `writer` emits **sorted** `facts.jsonl` + `manifest.json`. Failures are skip-and-log (partial compile is valid); errors/quarantine land in the manifest.
@@ -60,7 +61,7 @@ Pydantic, all `frozen=True`, `extra="forbid"`. `Node` / `Edge` are the two `kind
 `FastMCP` with 8 read tools (`search`, `get_node`, `neighbors`, `at_time`, `history`, `changes`, `list_namespaces`, `schema`) and 5 write tools (`propose_fact`, `link_facts`, `flag_contradiction`, `update_fact`, `suggest_improvement`). Module-global `ScopedGraph` is set by `configure()`; `_require()` lazy-reloads when `facts.jsonl` mtime changes (so `compile` is visible without reconnecting). Tools are plain functions registered with `@mcp.tool()` but stay directly callable — **tests invoke them directly, no MCP transport**. The writer uses atomic `os.replace` so lazy-reload never reads a half-written file.
 
 ### Path resolution (`paths.py`)
-Pure (no I/O), 4-tier precedence high→low: explicit `LOREKEEP_RAW/OUT/CACHE/SCHEMA/CONFIG` env → `LOREKEEP_HOME` → **dev mode** (`.lorekeep/` present in CWD, or `LOREKEEP_DEV=1`; auto-detected in a source checkout) — all data lives under `cwd/.lorekeep/` (`config.yaml`, `schema.json`, `raw/`, `graph/`, `cache.json`), mirroring the `LOREKEEP_HOME` layout → XDG (`platformdirs`). Running `uv run lorekeep …` from the repo uses the repo's own `.lorekeep/` data home with zero migration.
+Pure (no I/O), 4-tier precedence high→low: explicit `LOREKEEP_RAW/OUT/CACHE/SCHEMA/CONFIG/WIKI` env → `LOREKEEP_HOME` → **dev mode** (`.lorekeep/` present in CWD, or `LOREKEEP_DEV=1`; auto-detected in a source checkout) — all data lives under `cwd/.lorekeep/` (`config.yaml`, `schema.json`, `raw/`, `graph/`, `wiki/`, `pending/`, `cache.json`), mirroring the `LOREKEEP_HOME` layout → XDG (`platformdirs`). Running `uv run lorekeep …` from the repo uses the repo's own `.lorekeep/` data home with zero migration.
 
 ### Provider pluggability (`compile/providers.py`)
 `LiteLLMProvider` (OpenAI / Anthropic / DashScope/Qwen / Ollama via litellm model strings) and `FakeProvider` (tests/offline). Model is set in `config.yaml` as a litellm string.
@@ -79,11 +80,11 @@ Pure (no I/O), 4-tier precedence high→low: explicit `LOREKEEP_RAW/OUT/CACHE/SC
 - **Conventional Commits are enforced** — a `commit-msg` pre-commit hook (`scripts/check-conventional-commit.py`) plus CI (`lint-commits.yml`, checking both commit messages and PR title). Types: `build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test`. Merge commits are exempt.
 - **Releases are automated** — `release-please` runs on every push to `main` (`feat`=minor, `fix`=patch, `!`=major), opens an auto-merging Release PR, tags a GitHub Release on merge, and publishes to PyPI via OIDC trusted publishing (inline publish job). Do not version-bump by hand.
 - **Determinism is a hard requirement** — recompiling unchanged input must be byte-identical (kept green by `test_determinism.py`). Preserve the sorted-output / cache behavior in `writer.py` and `extract.py` when changing the pipeline.
-- **`graph/facts.jsonl` and `graph/manifest.json` are gitignored** (regenerated by `compile`); `.lorekeep/schema.json` is committed.
+- **`graph/facts.jsonl`, `graph/manifest.json`, and `wiki/` are gitignored** (regenerated by `compile`); `.lorekeep/schema.json` is committed.
 
 ## Tests
 
-`~140` tests, no network. Gold corpus in `tests/fixtures/gold/`, raw fixtures in `tests/fixtures/raw/`. Compile/serve/import tests inject `FakeProvider` via `patch_make_provider` / `patch_make_import_provider` conftest fixtures to pin paths and avoid the LLM — follow this pattern for any new CLI test rather than hitting a real provider.
+`~300` tests, no network. Gold corpus in `tests/fixtures/gold/`, raw fixtures in `tests/fixtures/raw/`. Compile/serve/import tests inject `FakeProvider` via `patch_make_provider` / `patch_make_import_provider` conftest fixtures to pin paths and avoid the LLM — follow this pattern for any new CLI test rather than hitting a real provider.
 
 ## Cursor Cloud specific instructions
 

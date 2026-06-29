@@ -101,13 +101,20 @@ rebuilt automatically. So the workflow is:
 
 ```bash
 <edit raw/.../*.md>
-uvx lorekeep compile          # rebuilds facts.jsonl
+uvx lorekeep compile          # rebuilds facts.jsonl + regenerates wiki/
 # OR: agent ingest + resolve  # propose facts interactively, merge journals
 # OR: lorekeep agent watch    # daemon does compile + resolve automatically
 # next query from the agent sees the new graph — NO reconnect needed
+# wiki/ pages also regenerated automatically
 ```
 
 Connect the MCP server **once**; graph updates via `compile`, `resolve`, or
 the daemon are visible immediately. Reconnect is only needed for **code**
 changes (rare; the serve path is stable) or **scope** changes (`.mcp.json`
 `LOREKEEP_NS`).
+
+## Human view: wiki
+
+The same `facts.jsonl` is also projected to **Obsidian-compatible markdown**
+in `wiki/` — one page per node, `[[wikilinks]]` for edges, YAML frontmatter
+for Dataview. See [wiki.md](wiki.md).

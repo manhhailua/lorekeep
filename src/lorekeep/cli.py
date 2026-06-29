@@ -112,7 +112,21 @@ def compile() -> None:
 
     pending_dir = p.get("pending")
     if pending_dir and pending_dir.exists():
-        _do_auto_resolve(p["out"], pending_dir)
+        _do_auto_resolve(p["out"], pending_dir, p.get("wiki"))
+
+    _auto_generate_wiki(p["out"], p["wiki"])
+
+
+@app.command()
+def wiki() -> None:
+    """Generate Obsidian-compatible wiki from facts.jsonl."""
+    p = resolve_paths()
+    from lorekeep.wiki import generate_wiki
+    result = generate_wiki(p["out"], p["wiki"])
+    if "error" in result:
+        typer.echo(f"wiki: {result['error']}")
+        raise typer.Exit(code=1)
+    typer.echo(f"wiki: {result['pages']} pages written to {p['wiki']}")
 
 
 @app.command(name="eval")
@@ -237,6 +251,8 @@ def resolve(
         f"{merged.merge_count} merged, {merged.flagged_count} flagged, "
         f"{merged.quarantine_count} quarantined"
     )
+
+    _auto_generate_wiki(p["out"], p["wiki"])
 
 
 @app.command()
@@ -560,7 +576,7 @@ def _auto_import_and_compile(p: dict) -> None:
         )
         pending_dir = p.get("pending")
         if pending_dir and pending_dir.exists():
-            _do_auto_resolve(p["out"], pending_dir)
+            _do_auto_resolve(p["out"], pending_dir, p.get("wiki"))
         typer.echo(f"  compiled: {manifest.node_count} nodes, {manifest.edge_count} edges")
     except Exception as exc:
         typer.echo(f"  compile skipped: {exc}")
@@ -1143,7 +1159,7 @@ def watch(
             # from raw/ only.  Re-merge pending journal entries so facts
             # approved via agent ingest / MCP write tools are not lost.
             if compiled and has_pending:
-                _do_auto_resolve(p["out"], pending_dir)
+                _do_auto_resolve(p["out"], pending_dir, p.get("wiki"))
 
             # --- pending/ watch → auto-resolve ------------------------------
             if has_pending:
@@ -1151,7 +1167,7 @@ def watch(
                 pending_mtime = max((f.stat().st_mtime for f in journal_files), default=0.0)
                 if pending_mtime > last_pending_mtime and last_pending_mtime > 0:
                     typer.echo("agent: pending/ changed — resolving...")
-                    _do_auto_resolve(p["out"], pending_dir)
+                    _do_auto_resolve(p["out"], pending_dir, p.get("wiki"))
                 last_pending_mtime = pending_mtime
 
             # --- session watch → delta quick import → raw/ ------------------
@@ -1182,7 +1198,7 @@ def watch(
             time.sleep(interval)
 
 
-def _do_auto_resolve(out_dir: Path, pending_dir: Path) -> None:
+def _do_auto_resolve(out_dir: Path, pending_dir: Path, wiki_dir: Path | None = None) -> None:
     """Merge pending journal entries into facts.jsonl.
 
     Extracted as a helper so both the pending/ watch loop and the
@@ -1234,8 +1250,20 @@ def _do_auto_resolve(out_dir: Path, pending_dir: Path) -> None:
 
             typer.echo(f"agent: resolve done — {merged.merge_count} merged, "
                        f"{merged.flagged_count} flagged, {merged.quarantine_count} quarantined")
+
+            if wiki_dir:
+                _auto_generate_wiki(out_dir, wiki_dir)
     except Exception as exc:
         typer.echo(f"agent: resolve error: {exc}")
+
+
+def _auto_generate_wiki(graph_dir: Path, wiki_dir: Path) -> None:
+    """Regenerate wiki after compile or resolve. Best-effort, never blocks."""
+    try:
+        from lorekeep.wiki import generate_wiki
+        generate_wiki(graph_dir, wiki_dir)
+    except Exception as exc:
+        typer.echo(f"wiki: auto-gen skipped: {exc}")
 
 
 if __name__ == "__main__":

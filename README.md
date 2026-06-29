@@ -247,7 +247,8 @@ src/lorekeep/
   store/{graph,fts}.py                          GraphStore + optional FTS cache
   perm/ns.py                                    ScopedGraph permission chokepoint
   mcp_server.py                                 FastMCP + 8 read + 5 write tools
-  integrations/{claude_code,cursor,codex,common}.py
+  wiki.py                                        Obsidian-compatible wiki generator
+  integrations/{claude_code,cursor,codex,opencode,common}.py
   pipeline.py, cli.py
   eval/{gold,construction,retrieval}.py
 tests/                 ~140 tests
@@ -256,9 +257,9 @@ docs/                  README.md index, architecture/, guides/
 
 ## Status
 
-**v1 (implemented)** — compile pipeline + serve (store/permission/MCP read/integrations) + import + agent daemon (watch/ingest/lint/suggest/status) + journal + resolve + data-home + dev mode + lazy-reload + backup + eval. Published to PyPI as `lorekeep`.
+**v1 (implemented)** — compile pipeline + serve (store/permission/MCP read+write/4-agent integrations) + import (Claude/Cursor/Codex/opencode) + session-end hooks + agent daemon (watch/ingest/lint/suggest/status) + journal + resolve + data-home + dev mode + lazy-reload + backup + eval + **wiki** (Obsidian-compatible markdown output). Published to PyPI as `lorekeep`.
 
-**Phase 2 (planned)** — `wiki.md` views (Obsidian-compatible markdown output), streamable-HTTP team server, OIDC/SSO, embeddings/hybrid search, scheduled nightly lint/suggest in daemon, schema evolve, full Tier-2 benchmark datasets (HotpotQA/CronQuestions) and the bespoke Tier-3 Lorekeep-Reason eval.
+**Phase 2 (planned)** — streamable-HTTP team server, OIDC/SSO, embeddings/hybrid search, scheduled nightly lint/suggest in daemon, schema evolve, full Tier-2 benchmark datasets (HotpotQA/CronQuestions) and the bespoke Tier-3 Lorekeep-Reason eval.
 
 ## Documentation
 
@@ -269,6 +270,7 @@ The [`docs/`](docs/README.md) index is the entry point.
 - [Importing agent sessions](docs/guides/import.md)
 - [Compiling the knowledge graph](docs/guides/compile.md)
 - [Serving the graph to coding agents](docs/guides/serve.md)
+- [Browsing the wiki](docs/guides/wiki.md)
 - [Data home & path resolution](docs/guides/data-home.md)
 - [Backing up the data home](docs/guides/backup.md)
 

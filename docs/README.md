@@ -24,8 +24,9 @@ Concepts and design — how the system fits together.
 How to use it.
 
 - [**Getting started**](guides/getting-started.md) — install → compile → serve → backup in 10 minutes. Start here.
-- [Importing agent sessions](guides/import.md) — Claude Code + Cursor → `raw/`.
+- [Importing agent sessions](guides/import.md) — Claude Code + Cursor + Codex + opencode → `raw/`.
 - [Compiling the knowledge graph](guides/compile.md) — `raw/*.md` → `facts.jsonl` + resolve pending.
-- [Serving the graph to coding agents](guides/serve.md) — wire Claude Code / Cursor / Codex over MCP, write tools, daemon.
+- [Serving the graph to coding agents](guides/serve.md) — wire Claude Code / Cursor / Codex / opencode over MCP, write tools, daemon.
+- [Browsing the wiki](guides/wiki.md) — human-readable Obsidian-compatible markdown view of the graph.
 - [Data home & path resolution](guides/data-home.md) — env / `LOREKEEP_HOME` / dev mode / XDG.
 - [Backing up the data home](guides/backup.md) — `lorekeep backup` to a private git repo: setup, restore, multi-device conflicts.
