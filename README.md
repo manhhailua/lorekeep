@@ -6,21 +6,14 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Lorekeep compiles a team's raw documentation into a versioned, time-aware
-knowledge graph (`facts.jsonl`) and exposes it to coding agents (Claude Code,
-Cursor, Codex, opencode) through the Model Context Protocol — with per-namespace
-permission and zero servers to run.
-
-It applies Andrej Karpathy's "LLM Knowledge Base" idea: raw docs are the
-**source code**, the compiled graph is the **executable**. Knowledge is
-processed once at compile time, not re-RAG'd per query — and agent
-conversations continuously enrich the graph through append-only journals.
+Lorekeep compiles a team's raw docs into a temporal knowledge graph (`facts.jsonl`),
+serves it to coding agents (Claude Code, Cursor, Codex, opencode) over MCP, and
+lets agents propose new facts at zero LLM cost. Knowledge is processed once at
+compile time, not re-RAG'd per query.
 
 ---
 
 ## Why
-
-Existing tools each miss part of what a team needs:
 
 | | file-based | temporal KG | compile step | team permission | MCP |
 |---|---|---|---|---|---|
@@ -28,9 +21,9 @@ Existing tools each miss part of what a team needs:
 | mcp-knowledge-graph | ✅ | ❌ | ❌ | ❌ (local) | ✅ |
 | mem0 / cognee | ❌ (DB) | partial | ❌ | partial (DB) | ✅ |
 
-Lorekeep targets the gap: **strictly file-based + temporal graph + compile-once +
-namespace-scoped permission + MCP** — for team-level (not just single-user)
-knowledge.
+No tool combines all five. Lorekeep does: **file-based + temporal graph +
+compile-once + namespace permission + MCP** — for team-level knowledge, not
+just single-user.
 
 ## Features
 
