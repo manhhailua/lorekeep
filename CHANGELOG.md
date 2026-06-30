@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/manhhailua/lorekeep/compare/v0.6.1...v0.7.0) (2026-06-30)
+
+
+### Features
+
+* add scope-awareness meta tool — 9th MCP read tool ([#72](https://github.com/manhhailua/lorekeep/issues/72)) ([d7a6c95](https://github.com/manhhailua/lorekeep/commit/d7a6c950ea009bea8c22c81850336b7a3ae0eb12))
+
 ## [0.6.1](https://github.com/manhhailua/lorekeep/compare/v0.6.0...v0.6.1) (2026-06-30)
 
 
