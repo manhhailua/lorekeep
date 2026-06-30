@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.3](https://github.com/manhhailua/lorekeep/compare/v0.8.2...v0.8.3) (2026-06-30)
+
+
+### Bug Fixes
+
+* disable uv cache on publish job — prevents cache race warning ([#83](https://github.com/manhhailua/lorekeep/issues/83)) ([03c9598](https://github.com/manhhailua/lorekeep/commit/03c95989169cc16d0ecf4618678f895f3b1c0f94))
+
 ## [0.8.2](https://github.com/manhhailua/lorekeep/compare/v0.8.1...v0.8.2) (2026-06-30)
 
 
