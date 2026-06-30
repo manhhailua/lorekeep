@@ -119,9 +119,11 @@ class ExtractionCache:
         if self.path.exists():
             self._data = json.loads(self.path.read_text(encoding="utf-8"))
 
-    def key(self, chunk: DocChunk, schema_version: int) -> str:
+    def key(self, chunk: DocChunk, schema_version: int, model: str = "") -> str:
         h = hashlib.sha256()
         h.update(str(schema_version).encode("utf-8"))
+        h.update(b"\n")
+        h.update(model.encode("utf-8"))
         h.update(b"\n")
         h.update(chunk.hash.encode("utf-8"))
         return h.hexdigest()
@@ -142,7 +144,8 @@ class ExtractionCache:
 def extract_chunk(
     chunk: DocChunk, schema: Schema, provider: LLMProvider, cache: ExtractionCache,
 ) -> tuple[list[Node], list[Edge], dict[str, list[str]]]:
-    key = cache.key(chunk, schema.version)
+    model = getattr(provider, "model", "")
+    key = cache.key(chunk, schema.version, model)
     raw = cache.get(key)
     if raw is None:
         raw = provider.extract_json(SYSTEM_PROMPT, build_prompt(chunk, schema))

@@ -19,13 +19,15 @@ from lorekeep.models import JournalEntry, Manifest, Schema
 from lorekeep.perm.ns import ScopedGraph
 from lorekeep.schema_io import load_schema
 from lorekeep.store.graph import GraphStore, parse_date
+from lorekeep.store.fts import FTSIndex
 
 mcp = FastMCP("lorekeep")
 
-_state: dict = {}          # graph_dir, allowed_ns, schema_path, pending_dir, facts_mtime
+_state: dict = {}          # graph_dir, allowed_ns, schema_path, pending_dir, fts_path, facts_mtime
 _scope: ScopedGraph | None = None
 _schema: Schema | None = None
 _manifest: Manifest | None = None
+_fts: FTSIndex | None = None
 
 
 def configure(graph_dir, allowed_ns, schema_path=None, fts_path=None, pending_dir=None) -> None:
@@ -34,12 +36,16 @@ def configure(graph_dir, allowed_ns, schema_path=None, fts_path=None, pending_di
     _state["allowed_ns"] = list(allowed_ns)
     _state["schema_path"] = Path(schema_path) if schema_path else None
     _state["pending_dir"] = Path(pending_dir) if pending_dir else None
+    if fts_path:
+        _state["fts_path"] = Path(fts_path)
+    else:
+        _state["fts_path"] = _state["graph_dir"] / "fts.sqlite"
     _rebuild()
 
 
 def _rebuild() -> None:
-    """(Re)load the graph + schema + manifest from disk into a fresh ScopedGraph."""
-    global _scope, _schema, _manifest
+    """(Re)load the graph + schema + manifest + FTS from disk into a fresh ScopedGraph."""
+    global _scope, _schema, _manifest, _fts
     facts = _state["graph_dir"] / "facts.jsonl"
     store = GraphStore.from_jsonl(facts)
     sp = _state.get("schema_path")
@@ -50,6 +56,15 @@ def _rebuild() -> None:
         _manifest = Manifest.from_json(manifest_path.read_text(encoding="utf-8"))
     else:
         _manifest = None
+    try:
+        fts_path = _state.get("fts_path")
+        if fts_path:
+            _fts = FTSIndex(fts_path)
+            _fts.build(store.all_nodes())
+        else:
+            _fts = None
+    except Exception:
+        _fts = None
     _state["facts_mtime"] = facts.stat().st_mtime if facts.exists() else 0
 
 
@@ -125,7 +140,7 @@ def changes(from_t: str, to_t: str) -> dict:
 @mcp.tool()
 def search(query: str, limit: int = 10) -> list:
     """Text search over node ids/props, scoped to the caller."""
-    return _require().search(query, limit)
+    return _require().search(query, limit, fts=_fts)
 
 
 @mcp.tool()
