@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/manhhailua/lorekeep/compare/v0.8.0...v0.8.1) (2026-06-30)
+
+
+### Documentation
+
+* tighten Why section ([#78](https://github.com/manhhailua/lorekeep/issues/78)) ([4da2edd](https://github.com/manhhailua/lorekeep/commit/4da2edd8f0451535ac47d8318b657cc4ccca958d))
+
 ## [0.8.0](https://github.com/manhhailua/lorekeep/compare/v0.7.1...v0.8.0) (2026-06-30)
 
 
