@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/manhhailua/lorekeep/compare/v0.6.0...v0.6.1) (2026-06-30)
+
+
+### Documentation
+
+* sync README with shipped features ([#70](https://github.com/manhhailua/lorekeep/issues/70)) ([ea81476](https://github.com/manhhailua/lorekeep/commit/ea81476f4ad49938a5bf1d616e6658ab8b204b36))
+
 ## [0.6.0](https://github.com/manhhailua/lorekeep/compare/v0.5.0...v0.6.0) (2026-06-29)
 
 
