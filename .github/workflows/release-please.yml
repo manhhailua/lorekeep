@@ -51,8 +51,6 @@ jobs:
           ref: ${{ github.event.inputs.tag_name || needs.release-please.outputs.tag_name }}
 
       - uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
 
       - run: uv build
 
