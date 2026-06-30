@@ -170,28 +170,45 @@ def _edge_text(edge: Edge, store: GraphStore) -> str:
 
 
 def _load_src_text(src_refs: tuple[str, ...], raw_dir: Path | None) -> str:
-    """Read source markdown lines referenced by src (path:line format)."""
+    """Read full source markdown files referenced by src (path:line format)."""
     if not raw_dir or not src_refs:
         return ""
+    seen_files: set[str] = set()
     parts: list[str] = []
     for ref in src_refs:
-        if ":" not in ref:
-            continue
-        path_str, _, line_str = ref.rpartition(":")
-        try:
-            line_num = int(line_str)
-        except ValueError:
+        path_str = ref.rpartition(":")[0]
+        if path_str in seen_files:
             continue
         path = raw_dir / path_str
         if not path.exists():
             continue
+        seen_files.add(path_str)
         try:
-            lines = path.read_text(encoding="utf-8").splitlines()
-            start = max(0, line_num - 1)
-            end = min(len(lines), start + 5)
-            parts.extend(lines[start:end])
+            parts.append(path.read_text(encoding="utf-8"))
         except Exception:
             continue
+        if len(seen_files) >= 5:
+            break
+    return " ".join(parts)
+
+
+def _search_raw_text(keywords: list[str], raw_dir: Path | None, limit: int = 3) -> str:
+    """Direct keyword search over raw markdown files (graph-guided fallback)."""
+    if not raw_dir or not keywords:
+        return ""
+    parts: list[str] = []
+    count = 0
+    for md_file in sorted(raw_dir.rglob("*.md")):
+        try:
+            text = md_file.read_text(encoding="utf-8")
+        except Exception:
+            continue
+        lower = text.lower()
+        if any(kw.lower() in lower for kw in keywords):
+            parts.append(text)
+            count += 1
+            if count >= limit:
+                break
     return " ".join(parts)
 
 
@@ -267,6 +284,9 @@ def answer_question(
         src_text = _load_src_text(tuple(seen_src), raw_dir)
         if src_text:
             fact_text_parts.append(src_text)
+        raw_hits = _search_raw_text(keywords, raw_dir)
+        if raw_hits:
+            fact_text_parts.append(raw_hits)
 
     fact_text = " ".join(fact_text_parts)
 
