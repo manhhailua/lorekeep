@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/manhhailua/lorekeep/compare/v0.7.1...v0.8.0) (2026-06-30)
+
+
+### Features
+
+* add Tier-2 LoCoMo retrieval eval ([#76](https://github.com/manhhailua/lorekeep/issues/76)) ([a285409](https://github.com/manhhailua/lorekeep/commit/a285409f62584443907491c4cdb517e9dd4b9eea))
+
 ## [0.7.1](https://github.com/manhhailua/lorekeep/compare/v0.7.0...v0.7.1) (2026-06-30)
 
 
