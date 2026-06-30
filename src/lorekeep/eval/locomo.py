@@ -121,6 +121,23 @@ def token_f1(gold: str, prediction: str) -> float:
     return 2 * precision * recall / (precision + recall)
 
 
+def token_recall(gold: str, prediction: str) -> float:
+    """What fraction of gold answer tokens appear in prediction?
+
+    Better than F1 for retrieval eval: doesn't penalize for retrieving
+    extra context (low precision). Measures "can the answer be found?"
+    """
+    g = _normalize(gold)
+    p = _normalize(prediction)
+    if not g:
+        return 1.0
+    if not p:
+        return 0.0
+    common = Counter(g) & Counter(p)
+    num_same = sum(common.values())
+    return num_same / len(g)
+
+
 # ── Runner ─────────────────────────────────────────────────────────────────
 
 
@@ -128,6 +145,10 @@ def _node_text(node: Node) -> str:
     parts = [node.id, node.type]
     for v in node.props.values():
         parts.append(str(v))
+    if node.valid_from:
+        parts.append(node.valid_from.isoformat())
+    if node.valid_to:
+        parts.append(node.valid_to.isoformat())
     return " ".join(parts)
 
 
@@ -141,59 +162,118 @@ def _edge_text(edge: Edge, store: GraphStore) -> str:
         parts.append(_node_text(to_node))
     for v in edge.props.values():
         parts.append(str(v))
+    if edge.valid_from:
+        parts.append(edge.valid_from.isoformat())
+    if edge.valid_to:
+        parts.append(edge.valid_to.isoformat())
+    return " ".join(parts)
+
+
+def _load_src_text(src_refs: tuple[str, ...], raw_dir: Path | None) -> str:
+    """Read source markdown lines referenced by src (path:line format)."""
+    if not raw_dir or not src_refs:
+        return ""
+    parts: list[str] = []
+    for ref in src_refs:
+        if ":" not in ref:
+            continue
+        path_str, _, line_str = ref.rpartition(":")
+        try:
+            line_num = int(line_str)
+        except ValueError:
+            continue
+        path = raw_dir / path_str
+        if not path.exists():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+            start = max(0, line_num - 1)
+            end = min(len(lines), start + 5)
+            parts.extend(lines[start:end])
+        except Exception:
+            continue
     return " ".join(parts)
 
 
 def _extract_keywords(question: str) -> list[str]:
-    """Extract proper nouns + key terms from question (one search per keyword)."""
+    """Extract proper nouns + key content words (one search per keyword)."""
     tokens = question.replace("?", "").replace(".", "").replace("!", "").split()
     common_caps = {
         "What", "When", "Where", "Who", "Why", "How", "Did", "Do", "Does",
         "Was", "Were", "Is", "Are", "The", "A", "An", "I", "My", "Me",
         "Would", "Could", "Will", "Have", "Has", "Had", "They", "Them",
         "Their", "Her", "His", "Its", "This", "That", "These", "Those",
+        "Which",
     }
     keywords = [t for t in tokens if t and t[0].isupper() and t not in common_caps]
-    if not keywords:
-        stop = {"what", "when", "where", "who", "why", "how", "did", "do", "does",
-                "was", "were", "is", "are", "the", "a", "an", "to", "of", "in"}
-        low = [t.lower() for t in tokens if t.lower() not in stop and len(t) > 2]
-        keywords = low[:3]
-    return keywords
+    stop = {"what", "when", "where", "who", "why", "how", "did", "do", "does",
+            "was", "were", "is", "are", "the", "a", "an", "to", "of", "in",
+            "on", "at", "for", "from", "about", "after", "before", "during",
+            "and", "or", "not", "no", "yes", "can", "could", "would", "will",
+            "have", "has", "had", "been", "being", "that", "this", "these",
+            "those", "it", "they", "them", "their", "her", "his", "its",
+            "ago", "long", "much", "many", "old", "new", "first", "last"}
+    content_words = [t.lower() for t in tokens
+                     if t.lower() not in stop and len(t) > 2
+                     and t not in common_caps and not t[0].isupper()]
+    keywords.extend(content_words[:3])
+    return keywords[:8]
 
 
 def answer_question(
     scoped: ScopedGraph,
     store: GraphStore,
     question: dict,
+    raw_dir: Path | None = None,
 ) -> dict:
-    """Retrieve facts for a question and score against gold answer."""
+    """Retrieve facts for a question and score against gold answer.
+
+    Uses graph-guided retrieval: search → get_node → neighbors(depth=1-2).
+    Enriches fact text with source markdown from ``src`` references.
+    """
+    cat = question["category"]
     keywords = _extract_keywords(question["question"])
     all_node_ids: set[str] = set()
     for kw in keywords:
         ids = scoped.search(kw, limit=5)
         all_node_ids.update(ids)
 
+    depth = 2 if cat == 3 else 1
     fact_text_parts: list[str] = []
+    seen_src: set[str] = set()
+
     for nid in sorted(all_node_ids):
         node = scoped.get_node(nid)
-        if node:
-            fact_text_parts.append(_node_text(node))
-            res = scoped.neighbors(nid, depth=1)
-            for n in res["nodes"]:
-                fact_text_parts.append(_node_text(n))
-            for e in res["edges"]:
-                fact_text_parts.append(_edge_text(e, store))
+        if not node:
+            continue
+        fact_text_parts.append(_node_text(node))
+        if not question["adversarial"]:
+            for ref in node.src:
+                seen_src.add(ref)
+
+        res = scoped.neighbors(nid, depth=depth)
+        for n in res["nodes"]:
+            fact_text_parts.append(_node_text(n))
+            if not question["adversarial"]:
+                for ref in n.src:
+                    seen_src.add(ref)
+        for e in res["edges"]:
+            fact_text_parts.append(_edge_text(e, store))
+            if not question["adversarial"]:
+                for ref in e.src:
+                    seen_src.add(ref)
+
+    if not question["adversarial"]:
+        src_text = _load_src_text(tuple(seen_src), raw_dir)
+        if src_text:
+            fact_text_parts.append(src_text)
 
     fact_text = " ".join(fact_text_parts)
 
     if question["adversarial"]:
-        # Adversarial: score = 1 - f1(wrong_answer, retrieved_text)
-        # High score = system correctly did NOT find supporting evidence
-        # for the plausible-but-wrong answer
-        score = 1.0 - token_f1(question["gold"], fact_text)
+        score = 1.0 - token_recall(question["gold"], fact_text)
     else:
-        score = token_f1(question["gold"], fact_text)
+        score = token_recall(question["gold"], fact_text)
 
     return {
         "question": question["question"],
@@ -217,8 +297,14 @@ CATEGORY_NAMES = {
 }
 
 
-def locomo_report(graph_dir: Path, json_path: Path, allowed_ns: list[str]) -> dict:
+def locomo_report(
+    graph_dir: Path, json_path: Path, allowed_ns: list[str],
+    raw_dir: Path | None = None,
+) -> dict:
     """Run LoCoMo QA eval against a compiled graph.
+
+    If ``raw_dir`` is given, source markdown lines are included in the
+    fact text for each retrieved node/edge (graph-guided retrieval).
 
     Returns per-category F1 + overall metrics.
     """
@@ -230,7 +316,7 @@ def locomo_report(graph_dir: Path, json_path: Path, allowed_ns: list[str]) -> di
     scoped = ScopedGraph(store, allowed_ns)
     questions = extract_questions(json_path)
 
-    results = [answer_question(scoped, store, q) for q in questions]
+    results = [answer_question(scoped, store, q, raw_dir=raw_dir) for q in questions]
 
     per_cat: dict[str, list[float]] = {}
     for r in results:

@@ -183,7 +183,7 @@ def eval_locomo_cmd(
 
     raw_ns = os.environ.get("LOREKEEP_NS")
     allowed = [x.strip() for x in raw_ns.split(",")] if raw_ns else ["locomo"]
-    report = locomo_report(p["out"], data_path, allowed)
+    report = locomo_report(p["out"], data_path, allowed, raw_dir=p["raw"])
     if "error" in report:
         typer.echo(f"eval-locomo: {report['error']}")
         raise typer.Exit(code=1)
