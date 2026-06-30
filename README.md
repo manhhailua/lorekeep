@@ -61,6 +61,8 @@ knowledge.
   DashScope/Qwen / Ollama). Strict-privacy → Ollama, fully local.
 - **Tier-1 eval** — extraction P/R/F1 vs a gold corpus, entity-resolution F1,
   graph-structure metrics, determinism property tests.
+- **Tier-2 LoCoMo eval** — long-term conversations → graph → retrieval QA.
+  F1 per category (single-hop, temporal, multi-hop, adversarial abstention).
 
 ## Install
 
@@ -255,6 +257,7 @@ src/lorekeep/
   integrations/{claude_code,cursor,codex,opencode,common}.py
   pipeline.py, cli.py
   eval/{gold,construction,retrieval}.py
+  eval/locomo.py                                Tier-2 LoCoMo eval
 tests/                 ~310 tests
 docs/                  README.md index, architecture/, guides/
 ```
@@ -263,7 +266,7 @@ docs/                  README.md index, architecture/, guides/
 
 **v1 (implemented)** — compile pipeline + serve (store/permission/MCP 9 read+5 write/4-agent integrations) + import (Claude/Cursor/Codex/opencode) + session-end hooks + agent daemon (watch/ingest/lint/suggest/status) + journal + resolve + data-home + dev mode + lazy-reload + backup + eval + scope awareness (`meta` tool) + **wiki** (Obsidian-compatible markdown output). Published to PyPI as `lorekeep`.
 
-**Phase 2 (planned)** — streamable-HTTP team server, OIDC/SSO, embeddings/hybrid search, scheduled nightly lint/suggest in daemon, schema evolve, full Tier-2 benchmark datasets (HotpotQA/CronQuestions) and the bespoke Tier-3 Lorekeep-Reason eval.
+**Phase 2 (planned)** — streamable-HTTP team server, OIDC/SSO, embeddings/hybrid search, scheduled nightly lint/suggest in daemon, schema evolve, HotpotQA/CronQuestions/LongMemEval benchmark datasets and the bespoke Tier-3 Lorekeep-Reason eval.
 
 ## Documentation
 

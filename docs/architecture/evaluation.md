@@ -41,9 +41,18 @@ Evaluates the **compiler**, not the agent. `lorekeep eval` / `lorekeep check`.
 
 Evaluates whether the **query path** returns correct facts.
 
-- Multi-hop QA: HotpotQA / 2WikiMultihopQA / MuSiQue — agent answers using Lorekeep tools; EM/F1.
-- Temporal QA: CronQuestions / TimeQuestions + the temporal subset of Atlas — measures `at_time` / `history` / `changes`. This is the industry weak spot (specialized memory systems drop to ~20% on temporal reasoning per Atlas) and Lorekeep's core bet.
-- Memory parity: LongMemEval / LoCoMo — sanity that graph retrieval is no worse than vector memory on long-horizon recall. **Not optimized as a target.**
+- **LoCoMo** (shipped): 10 very long-term conversations (300 turns, 35 sessions).
+  Converts conversations → `raw/*.md` → compile → graph → programmatic retrieval QA.
+  5 categories: single-hop, temporal, multi-hop, descriptive, adversarial.
+  Token-level F1 scoring (HotpotQA-style). Adversarial scored on abstention
+  (system should NOT find supporting evidence for plausible-but-wrong answer).
+  Run: `lorekeep eval-locomo --data locomo10.json --compile`.
+- HotpotQA / 2WikiMultihopQA / MuSiQue (planned): multi-hop QA with agent-LLM loop.
+- CronQuestions / TimeQuestions (planned): temporal KG QA — measures `at_time` /
+  `history` / `changes`. Industry weak spot (specialized memory systems drop to
+  ~20% on temporal reasoning per Atlas). Lorekeep's core bet.
+- LongMemEval (planned): 5 abilities — extraction, multi-session reasoning,
+  temporal reasoning, knowledge updates, abstention.
 
 ### Tier 3 — Systematic-thinking reasoning eval (north star)
 

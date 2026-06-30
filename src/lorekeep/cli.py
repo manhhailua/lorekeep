@@ -149,6 +149,61 @@ def eval_cmd() -> None:
     typer.echo(json.dumps(report, indent=2, sort_keys=True))
 
 
+@app.command(name="eval-locomo")
+def eval_locomo_cmd(
+    data: str = typer.Option("", "--data", help="Path to locomo10.json"),
+    compile_first: bool = typer.Option(
+        False, "--compile",
+        help="Convert JSON to raw/ + compile before running eval",
+    ),
+) -> None:
+    """Run Tier-2 LoCoMo retrieval eval."""
+    from lorekeep.eval.locomo import convert_locomo, locomo_report
+
+    p = resolve_paths()
+    data_path = Path(data) if data else Path(
+        os.environ.get("LOREKEEP_LOCOMO", "locomo10.json")
+    )
+
+    if compile_first:
+        if not data_path.exists():
+            typer.echo(f"eval-locomo: data file not found: {data_path}")
+            raise typer.Exit(code=1)
+        count = convert_locomo(data_path, p["raw"] / "locomo")
+        typer.echo(f"eval-locomo: converted {count} session files to {p['raw'] / 'locomo'}")
+        schema = load_schema(p["schema"])
+        config = load_config(p["config"])
+        provider = _make_provider(config)
+        manifest = compile_graph(
+            raw_root=p["raw"], out_dir=p["out"], schema=schema,
+            provider=provider, cache_path=p["cache"],
+            chunk_lines=config.compile.chunk_lines,
+        )
+        typer.echo(f"eval-locomo: compiled {manifest.node_count} nodes, {manifest.edge_count} edges")
+
+    raw_ns = os.environ.get("LOREKEEP_NS")
+    allowed = [x.strip() for x in raw_ns.split(",")] if raw_ns else ["locomo"]
+    report = locomo_report(p["out"], data_path, allowed)
+    if "error" in report:
+        typer.echo(f"eval-locomo: {report['error']}")
+        raise typer.Exit(code=1)
+
+    results_path = Path(os.environ.get(
+        "LOREKEEP_EVAL_RESULTS", ".lorekeep/eval/locomo-results.json"
+    ))
+    results_path.parent.mkdir(parents=True, exist_ok=True)
+    results_path.write_text(json.dumps(report, indent=2, sort_keys=True))
+
+    s = report["summary"]
+    typer.echo(f"\nLoCoMo Tier-2 Eval ({s['total_questions']} questions)")
+    typer.echo(f"Overall F1: {s['overall_f1']}")
+    typer.echo("")
+    typer.echo(f"{'Category':<20} {'Count':>6} {'F1':>8}")
+    typer.echo("-" * 36)
+    for cat, stats in s["per_category"].items():
+        typer.echo(f"{cat:<20} {stats['count']:>6} {stats['f1']:>8.4f}")
+
+
 @app.command()
 def check() -> None:
     """Validate the compiled graph: loads, no dangling edges."""
