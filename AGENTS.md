@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Lorekeep compiles a team's raw markdown docs into a **temporal knowledge graph** (`facts.jsonl`) and exposes it to coding agents (Claude Code, Cursor, Codex, opencode) over MCP, with per-namespace permission. Agents read facts through 8 read tools and propose new facts through 5 journal-based write tools (confidence-gated, merged on resolve). Knowledge is processed once at compile time, not re-RAG'd per query.
+Lorekeep compiles a team's raw markdown docs into a **temporal knowledge graph** (`facts.jsonl`) and exposes it to coding agents (Claude Code, Cursor, Codex, opencode) over MCP, with per-namespace permission. Agents read facts through 9 read tools and propose new facts through 5 journal-based write tools (confidence-gated, merged on resolve). Knowledge is processed once at compile time, not re-RAG'd per query.
 
 ## Commands
 
@@ -29,7 +29,7 @@ uv run lorekeep <command>                    # run the CLI in dev mode
 | `check` | Validate compiled graph loads, no dangling edges (exit 1 on failure) |
 | `eval` | Tier-1 construction P/R/F1 vs gold corpus + structure metrics |
 | `wiki` | Regenerate `wiki/` from `facts.jsonl` (Obsidian-compatible markdown) |
-| `serve [--transport stdio\|http]` | Run the MCP server (8 read + 5 write tools) |
+| `serve [--transport stdio\|http]` | Run the MCP server (9 read + 5 write tools) |
 | `mcp add --agent claude\|cursor\|codex\|opencode --ns NS` | Write agent MCP config |
 | `import --from claude\|cursor\|codex\|opencode` | Import agent sessions into `raw/` |
 | `doctor` | Verify install: graph loads, schema valid, a tool responds |
@@ -58,7 +58,7 @@ Pydantic, all `frozen=True`, `extra="forbid"`. `Node` / `Edge` are the two `kind
 - **`perm/ns.py` `ScopedGraph`** — the **single permission chokepoint**. Wraps a `GraphStore` and filters *every* query. Deny-by-default: `effective_ns = allowed ∪ {public}`; a node is visible iff `ns ∩ effective_ns ≠ ∅`; an edge iff **both** endpoints visible **and** `edge.ns ∩ effective_ns ≠ ∅` (an edge never leaks a neighbor the caller can't see). **Any new query path must go through `ScopedGraph`, not `GraphStore` directly.**
 
 ### Serve (`mcp_server.py`)
-`FastMCP` with 8 read tools (`search`, `get_node`, `neighbors`, `at_time`, `history`, `changes`, `list_namespaces`, `schema`) and 5 write tools (`propose_fact`, `link_facts`, `flag_contradiction`, `update_fact`, `suggest_improvement`). Module-global `ScopedGraph` is set by `configure()`; `_require()` lazy-reloads when `facts.jsonl` mtime changes (so `compile` is visible without reconnecting). Tools are plain functions registered with `@mcp.tool()` but stay directly callable — **tests invoke them directly, no MCP transport**. The writer uses atomic `os.replace` so lazy-reload never reads a half-written file.
+`FastMCP` with 9 read tools (`search`, `get_node`, `neighbors`, `at_time`, `history`, `changes`, `list_namespaces`, `schema`, `meta`) and 5 write tools (`propose_fact`, `link_facts`, `flag_contradiction`, `update_fact`, `suggest_improvement`). Module-global `ScopedGraph` is set by `configure()`; `_require()` lazy-reloads when `facts.jsonl` mtime changes (so `compile` is visible without reconnecting). `_manifest` global loads `manifest.json` alongside facts (for `meta` tool's `compiled_at` + `merged_count`). Tools are plain functions registered with `@mcp.tool()` but stay directly callable — **tests invoke them directly, no MCP transport**. The writer uses atomic `os.replace` so lazy-reload never reads a half-written file.
 
 ### Wiki (`wiki.py`)
 Pure JSONL → markdown transform (no LLM). `generate_wiki(graph_dir, wiki_dir)` reads `facts.jsonl` via `GraphStore` → entity pages (`entities/<type>/<slug>.md` with YAML frontmatter, wikilinks, props table), `index.md` (catalog), `overview.md` (stats dashboard), `log.md` (append-only, preserved across regen). Builds into `.wiki-build.tmp` then `os.rename` swaps into place (atomic). `_slug()` replaces `:`/`/` with `-`; collisions raise `ValueError`. YAML scalars quoted via `json.dumps` so IDs like `svc:payments-api` parse correctly. Props table escapes `\|`, collapses newlines, serializes non-strings. Regenerates on every `facts.jsonl` mutation: `compile` (single regen — `_do_auto_resolve` returns bool, compile skips if resolve already regend), `resolve` (gated on merge/flag), daemon auto-resolve (on actual merge). Best-effort — never blocks compile or resolve.

@@ -42,11 +42,55 @@ LOREKEEP_HOME=~/kb-work uvx lorekeep init
 LOREKEEP_HOME=~/kb-work uvx lorekeep compile
 ```
 
-## Read tools (8 tools, scoped)
+## Read tools (9 tools, scoped)
 
 `search`, `get_node`, `neighbors`, `at_time`, `history`, `changes`,
-`list_namespaces`, `schema`. Results are filtered to `LOREKEEP_NS`; cross-namespace
+`list_namespaces`, `schema`, `meta`. Results are filtered to `LOREKEEP_NS`; cross-namespace
 edges are hidden unless both endpoints are visible.
+
+### `meta(topic="")` — scope awareness
+
+Agents call `meta()` to decide whether to query the graph or work from memory:
+
+```json
+{
+  "nodes": 42,
+  "edges": 18,
+  "node_types": {"service": 30, "decision": 12},
+  "edge_types": {"depends_on": 15, "decided_by": 3},
+  "namespaces": ["backend", "frontend", "public"],
+  "provenance": {"curator": 38, "agent": 4},
+  "freshness": {
+    "oldest": "2024-01-15",
+    "newest": "2026-06-20",
+    "expired": 2
+  },
+  "compile": {
+    "run_id": "abc123",
+    "compiled_at": "2026-06-30T01:27:59Z",
+    "merged_count": 4,
+    "quarantined_count": 1
+  },
+  "pending": 7
+}
+```
+
+Pass `topic` to check coverage for a specific subject:
+
+```json
+{
+  "coverage": {
+    "topic": "payments",
+    "matching_nodes": 3,
+    "matching_types": {"service": 2, "decision": 1},
+    "node_ids": ["svc:payments-api", "dec:adr-007", "svc:payments-worker"]
+  }
+}
+```
+
+**Provenance signal:** `provenance.curator` counts nodes with `src` (compiled from raw docs, higher trust). `provenance.agent` counts nodes without `src` (agent-proposed via journal, lower trust). If most facts are agent-proposed, the agent should verify before relying on them.
+
+**Freshness signal:** `freshness.expired` counts nodes whose `valid_to` has passed. `compile.compiled_at` shows when the graph was last rebuilt. `pending` shows unresolved agent proposals.
 
 ## Write tools (5 tools, journal-based)
 

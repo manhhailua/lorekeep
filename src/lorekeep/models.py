@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -134,6 +134,7 @@ class Manifest(BaseModel):
     edge_count: int
     run_id: str
     facts_hash: str
+    compiled_at: str = ""
     chunk_hashes: dict[str, list[str]] = Field(default_factory=dict)
     errors: list[CompileError] = Field(default_factory=list)
     quarantine: list[QuarantineItem] = Field(default_factory=list)
@@ -148,3 +149,8 @@ class Manifest(BaseModel):
     @classmethod
     def from_json(cls, text: str) -> "Manifest":
         return cls.model_validate(json.loads(text))
+
+
+def now_iso() -> str:
+    """UTC timestamp for Manifest.compiled_at."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

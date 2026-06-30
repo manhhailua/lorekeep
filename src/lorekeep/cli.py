@@ -10,6 +10,7 @@ import typer
 from lorekeep import __version__
 from lorekeep.compile.providers import LiteLLMProvider
 from lorekeep.config import Config, load_config
+from lorekeep.models import now_iso
 from lorekeep.pipeline import compile_graph
 from lorekeep.paths import resolve_paths
 from lorekeep.defaults import DEFAULT_CONFIG_YAML, DEFAULT_SCHEMA, PROVIDER_PRESETS
@@ -214,6 +215,7 @@ def resolve(
         edge_count=len(resolved.edges),
         run_id="resolve",
         facts_hash="",
+        compiled_at=now_iso(),
         merged_count=merged.merge_count,
         quarantined_count=merged.quarantine_count,
         flagged_count=merged.flagged_count,
@@ -1236,6 +1238,7 @@ def _do_auto_resolve(out_dir: Path, pending_dir: Path, wiki_dir: Path | None = N
                 node_count=len(resolved.nodes),
                 edge_count=len(resolved.edges),
                 run_id="auto-resolve", facts_hash="",
+                compiled_at=now_iso(),
                 merged_count=merged.merge_count,
                 quarantined_count=merged.quarantine_count,
                 flagged_count=merged.flagged_count,

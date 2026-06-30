@@ -12,7 +12,7 @@ The serve chain loads `facts.jsonl` once and exposes it to coding agents over MC
 - **Lazy-reload:** every query stats `facts.jsonl`'s mtime; if it changed (after compile or resolve) the graph is rebuilt automatically. Connect the server once — graph updates are visible without reconnecting. Reconnect is only needed for code or scope (`.mcp.json` `LOREKEEP_NS`) changes.
 - **Journals:** write tools append to `pending/<ns>/journal.jsonl`; facts enter the graph on the next resolve pass, not immediately. This avoids write conflicts and keeps the read path fast.
 
-## Read tools (8 tools, scoped)
+## Read tools (9 tools, scoped)
 
 | Tool | Purpose |
 |---|---|

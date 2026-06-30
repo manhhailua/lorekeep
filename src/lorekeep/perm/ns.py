@@ -108,6 +108,71 @@ class ScopedGraph:
         ids = self._g.search(query, limit * 3, fts)   # over-fetch then filter
         return [nid for nid in ids if self._node_visible(self._g.get_node(nid))][:limit]
 
+    def stats(self, topic: str = "") -> dict:
+        """Namespace-filtered graph statistics.
+
+        If ``topic`` is given, also returns coverage info: how many visible
+        nodes/edges match the topic string (case-insensitive on id, type,
+        and prop values).
+        """
+        from datetime import date as date_t
+
+        nodes = [n for n in self._g.all_nodes() if self._node_visible(n)]
+        vis_ids = {n.id for n in nodes}
+        edges = [
+            e for e in self._g.all_edges()
+            if e.from_ in vis_ids and e.to in vis_ids and bool(set(e.ns) & self._eff)
+        ]
+        node_types: dict[str, int] = {}
+        edge_types: dict[str, int] = {}
+        all_ns: set[str] = set()
+        curator = 0
+        agent = 0
+        for n in nodes:
+            node_types[n.type] = node_types.get(n.type, 0) + 1
+            all_ns.update(n.ns)
+            if n.src:
+                curator += 1
+            else:
+                agent += 1
+        for e in edges:
+            edge_types[e.type] = edge_types.get(e.type, 0) + 1
+            all_ns.update(e.ns)
+        today = date_t.today()
+        valid_tos = [n.valid_to for n in nodes if n.valid_to]
+        valid_froms = [n.valid_from for n in nodes if n.valid_from]
+        result = {
+            "nodes": len(nodes),
+            "edges": len(edges),
+            "node_types": dict(sorted(node_types.items())),
+            "edge_types": dict(sorted(edge_types.items())),
+            "namespaces": sorted(all_ns),
+            "provenance": {"curator": curator, "agent": agent},
+            "freshness": {
+                "oldest": min(valid_froms).isoformat() if valid_froms else None,
+                "newest": max(valid_froms).isoformat() if valid_froms else None,
+                "expired": sum(1 for t in valid_tos if t <= today),
+            },
+        }
+        if topic:
+            tlow = topic.lower()
+            matching = [
+                n for n in nodes
+                if tlow in n.id.lower()
+                or tlow in n.type.lower()
+                or any(tlow in str(v).lower() for v in n.props.values())
+            ]
+            matching_types: dict[str, int] = {}
+            for n in matching:
+                matching_types[n.type] = matching_types.get(n.type, 0) + 1
+            result["coverage"] = {
+                "topic": topic,
+                "matching_nodes": len(matching),
+                "matching_types": dict(sorted(matching_types.items())),
+                "node_ids": sorted(n.id for n in matching)[:20],
+            }
+        return result
+
 
 def _edge_from_dict(d: dict) -> Edge:
     return Edge.model_validate(d)

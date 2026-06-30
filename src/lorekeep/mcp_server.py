@@ -15,7 +15,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from lorekeep.journal import append_journal
-from lorekeep.models import JournalEntry, Schema
+from lorekeep.models import JournalEntry, Manifest, Schema
 from lorekeep.perm.ns import ScopedGraph
 from lorekeep.schema_io import load_schema
 from lorekeep.store.graph import GraphStore, parse_date
@@ -25,6 +25,7 @@ mcp = FastMCP("lorekeep")
 _state: dict = {}          # graph_dir, allowed_ns, schema_path, pending_dir, facts_mtime
 _scope: ScopedGraph | None = None
 _schema: Schema | None = None
+_manifest: Manifest | None = None
 
 
 def configure(graph_dir, allowed_ns, schema_path=None, fts_path=None, pending_dir=None) -> None:
@@ -37,13 +38,18 @@ def configure(graph_dir, allowed_ns, schema_path=None, fts_path=None, pending_di
 
 
 def _rebuild() -> None:
-    """(Re)load the graph + schema from disk into a fresh ScopedGraph."""
-    global _scope, _schema
+    """(Re)load the graph + schema + manifest from disk into a fresh ScopedGraph."""
+    global _scope, _schema, _manifest
     facts = _state["graph_dir"] / "facts.jsonl"
     store = GraphStore.from_jsonl(facts)
     sp = _state.get("schema_path")
     _schema = load_schema(sp) if sp else None
     _scope = ScopedGraph(store, _state["allowed_ns"])
+    manifest_path = _state["graph_dir"] / "manifest.json"
+    if manifest_path.exists():
+        _manifest = Manifest.from_json(manifest_path.read_text(encoding="utf-8"))
+    else:
+        _manifest = None
     _state["facts_mtime"] = facts.stat().st_mtime if facts.exists() else 0
 
 
@@ -120,6 +126,35 @@ def changes(from_t: str, to_t: str) -> dict:
 def search(query: str, limit: int = 10) -> list:
     """Text search over node ids/props, scoped to the caller."""
     return _require().search(query, limit)
+
+
+@mcp.tool()
+def meta(topic: str = "") -> dict:
+    """Graph coverage, provenance, and freshness.
+
+    Agent calls this to decide whether to query the graph or work from memory.
+    If ``topic`` is given, returns matching node count and ids for that topic.
+    """
+    scope = _require()
+    result = scope.stats(topic)
+
+    if _manifest:
+        result["compile"] = {
+            "run_id": _manifest.run_id,
+            "compiled_at": _manifest.compiled_at or None,
+            "merged_count": _manifest.merged_count,
+            "quarantined_count": _manifest.quarantined_count,
+        }
+
+    pending = _pending_dir()
+    if pending and pending.exists():
+        from lorekeep.journal import load_journals
+        journals = load_journals(pending)
+        result["pending"] = sum(1 for j in journals if j.status == "pending")
+    else:
+        result["pending"] = 0
+
+    return result
 
 
 # --- Write tools (journal-based) -----------------------------------------

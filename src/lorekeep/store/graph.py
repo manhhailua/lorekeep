@@ -135,3 +135,39 @@ class GraphStore:
             return fts.search(query, limit)
         from lorekeep.store.fts import scan_search
         return scan_search(self.all_nodes(), query, limit)
+
+    def stats(self) -> dict:
+        """Return graph statistics: counts by type/ns, provenance split, freshness."""
+        nodes = self.all_nodes()
+        edges = self.all_edges()
+        node_types: dict[str, int] = {}
+        edge_types: dict[str, int] = {}
+        all_ns: set[str] = set()
+        curator = 0
+        agent = 0
+        for n in nodes:
+            node_types[n.type] = node_types.get(n.type, 0) + 1
+            all_ns.update(n.ns)
+            if n.src:
+                curator += 1
+            else:
+                agent += 1
+        for e in edges:
+            edge_types[e.type] = edge_types.get(e.type, 0) + 1
+            all_ns.update(e.ns)
+        today = date.today()
+        valid_tos = [n.valid_to for n in nodes if n.valid_to]
+        valid_froms = [n.valid_from for n in nodes if n.valid_from]
+        return {
+            "nodes": len(nodes),
+            "edges": len(edges),
+            "node_types": dict(sorted(node_types.items())),
+            "edge_types": dict(sorted(edge_types.items())),
+            "namespaces": sorted(all_ns),
+            "provenance": {"curator": curator, "agent": agent},
+            "freshness": {
+                "oldest": min(valid_froms).isoformat() if valid_froms else None,
+                "newest": max(valid_froms).isoformat() if valid_froms else None,
+                "expired": sum(1 for t in valid_tos if t <= today),
+            },
+        }

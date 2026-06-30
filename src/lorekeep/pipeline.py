@@ -8,7 +8,7 @@ from lorekeep.compile.ingest import ingest
 from lorekeep.compile.providers import LLMProvider
 from lorekeep.compile.resolve import resolve
 from lorekeep.compile.writer import facts_hash, run_id, write_graph
-from lorekeep.models import Edge, Manifest, Node, Schema
+from lorekeep.models import Edge, Manifest, Node, Schema, now_iso
 
 
 def compile_graph(
@@ -59,6 +59,7 @@ def compile_graph(
         edge_count=len(resolved.edges),
         run_id=rid,
         facts_hash=fh,
+        compiled_at=now_iso(),
         chunk_hashes=chunk_hashes,
         errors=errors,
         quarantine=[{"fact": q[0], "reason": q[1]} for q in resolved.quarantined],

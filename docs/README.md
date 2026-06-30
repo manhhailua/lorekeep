@@ -16,7 +16,7 @@ Concepts and design — how the system fits together.
 - [Agent](architecture/agent.md) — autonomous agent: daemon, trigger model, lint, resolve, suggest, cost profile.
 - [Permission model](architecture/permission.md) — namespace visibility rules, deny-by-default, the single `ScopedGraph` chokepoint.
 - [Temporal model](architecture/temporal.md) — `valid_from`/`valid_to`, `at_time` / `history` / `changes`.
-- [Serve & MCP](architecture/serve-mcp.md) — 8 read + 5 write MCP tools, lazy-reload, journal-based writes, agent integration, sync.
+- [Serve & MCP](architecture/serve-mcp.md) — 9 read + 5 write MCP tools, lazy-reload, journal-based writes, agent integration, sync.
 - [Testing & evaluation](architecture/evaluation.md) — the three-tier eval strategy and scope.
 
 ## Guides

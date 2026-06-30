@@ -102,7 +102,7 @@ Each component has one responsibility, a clear input/output interface, and is te
 | `perm/ns` | `allowed_ns` (set) | filter / guard | **Single permission chokepoint.** Every store query passes through here. |
 | `store/fts` (optional) | `facts.jsonl` | FTS cache | FTS5 over node text/props for text search. Local, gitignored, rebuilt from `facts.jsonl`. Falls back to in-memory scan if absent. |
 | `integrations/*` | agent type, scope, ns | config file + snippet | Write Claude Code / Cursor / Codex MCP config; emit agent-memory text. |
-| `mcp_server` | store + perm | 8 read + 5 write MCP tools | FastMCP server, stdio (default). Loads store once; enforces permission per request. Write tools append to journals. |
+| `mcp_server` | store + perm | 9 read + 5 write MCP tools | FastMCP server, stdio (default). Loads store once; enforces permission per request. Write tools append to journals. |
 
 ### Dependency order
 
