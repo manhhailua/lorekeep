@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.4](https://github.com/manhhailua/lorekeep/compare/v0.8.3...v0.8.4) (2026-06-30)
+
+
+### Documentation
+
+* fix Install + Quickstart consistency ([#85](https://github.com/manhhailua/lorekeep/issues/85)) ([87125de](https://github.com/manhhailua/lorekeep/commit/87125deff40a7318fc78391058eea143b1054ea8))
+
 ## [0.8.3](https://github.com/manhhailua/lorekeep/compare/v0.8.2...v0.8.3) (2026-06-30)
 
 
