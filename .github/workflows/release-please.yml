@@ -57,3 +57,25 @@ jobs:
       - run: uv build
 
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  sync-uv-lock:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: astral-sh/setup-uv@v7
+
+      - run: uv lock
+
+      - name: Commit synced uv.lock
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          git diff --cached --quiet || { git commit -m "chore: sync uv.lock" && git push; }
