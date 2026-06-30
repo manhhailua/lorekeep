@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/manhhailua/lorekeep/compare/v0.7.0...v0.7.1) (2026-06-30)
+
+
+### Bug Fixes
+
+* wire FTS5 search index + include model in extraction cache key ([#74](https://github.com/manhhailua/lorekeep/issues/74)) ([e9cd60a](https://github.com/manhhailua/lorekeep/commit/e9cd60ab573ae42b172f888cf3af5647e747c3f7))
+
 ## [0.7.0](https://github.com/manhhailua/lorekeep/compare/v0.6.1...v0.7.0) (2026-06-30)
 
 
