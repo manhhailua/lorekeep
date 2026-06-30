@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/manhhailua/lorekeep/compare/v0.8.1...v0.8.2) (2026-06-30)
+
+
+### Bug Fixes
+
+* sync uv.lock via PR — branch protection blocks direct push to main ([#80](https://github.com/manhhailua/lorekeep/issues/80)) ([4b2b94f](https://github.com/manhhailua/lorekeep/commit/4b2b94fc511fd1fd2d67e01e6559224491e6931f))
+
 ## [0.8.1](https://github.com/manhhailua/lorekeep/compare/v0.8.0...v0.8.1) (2026-06-30)
 
 
