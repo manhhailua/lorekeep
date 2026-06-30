@@ -33,7 +33,7 @@ jobs:
       tag_name: ${{ steps.rp.outputs.tag_name }}
     steps:
       - id: rp
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -64,6 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -73,9 +74,25 @@ jobs:
 
       - run: uv lock
 
-      - name: Commit synced uv.lock
+      - name: Sync uv.lock via PR
         run: |
+          if git diff --quiet uv.lock; then
+            echo "uv.lock already in sync"
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b chore/sync-uv-lock-${{ needs.release-please.outputs.tag_name }}
           git add uv.lock
-          git diff --cached --quiet || { git commit -m "chore: sync uv.lock" && git push; }
+          git commit -m "chore: sync uv.lock to ${{ needs.release-please.outputs.tag_name }}"
+          git push origin chore/sync-uv-lock-${{ needs.release-please.outputs.tag_name }}
+          gh pr create \
+            --title "chore: sync uv.lock to ${{ needs.release-please.outputs.tag_name }}" \
+            --body "Auto-synced after release." \
+            --base main \
+            --head chore/sync-uv-lock-${{ needs.release-please.outputs.tag_name }}
+          sleep 3
+          gh pr merge --squash --auto --delete-branch \
+            chore/sync-uv-lock-${{ needs.release-please.outputs.tag_name }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
