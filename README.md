@@ -230,11 +230,27 @@ For usage, see the [`docs/`](docs/README.md) index.
 
 ## Evaluation
 
-Tier-1 (CI): extraction P/R/F1 vs a gold corpus, entity-resolution pairwise F1,
-graph-structure metrics, determinism. Run: `uvx lorekeep eval`. The north star is
-*systematic thinking with complete information* — memory-recall benchmarks
-(LoCoMo, LongMemEval) are parity checks, not the optimization target. See
-[`docs/architecture/evaluation.md`](docs/architecture/evaluation.md).
+**Tier-1** (CI): extraction P/R/F1 vs a gold corpus, entity-resolution pairwise F1,
+graph-structure metrics, determinism. Run: `uvx lorekeep eval`.
+
+**Tier-2 LoCoMo** (per-release): long-term conversation → graph → retrieval QA.
+Run: `uvx lorekeep eval-locomo --data locomo10.json --compile`.
+
+| Category | Recall | Description |
+|---|---|---|
+| Temporal | 0.71 | "When did X happen?" |
+| Single-hop | 0.58 | "What is X's Y?" |
+| Multi-hop | 0.49 | "Who did X's sister work with?" |
+| Descriptive | 0.73 | "What did X do?" |
+| Adversarial | 0.85 | Abstention — plausible-but-wrong answer not found |
+| **Overall** | **0.71** | 199 QA, 1 conversation, DeepSeek extraction |
+
+*Graph-guided retrieval: keyword search → get_node → neighbors(depth=1-2) →
+source markdown enrichment. No agent-LLM synthesis (programmatic baseline).*
+
+The north star is *systematic thinking with complete information* — memory-recall
+benchmarks (LoCoMo, LongMemEval) are parity checks, not the optimization target.
+See [`docs/architecture/evaluation.md`](docs/architecture/evaluation.md).
 
 ## Project layout
 
