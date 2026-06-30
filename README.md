@@ -60,29 +60,28 @@ just single-user.
 ## Install
 
 ```bash
-# from PyPI:
-uvx lorekeep init                 # try it without installing
+# no install needed — uvx runs it directly:
+uvx lorekeep init
 
-# or from a clone:
-git clone https://github.com/manhhailua/lorekeep && cd lorekeep
-uv tool install .                 # installs the `lorekeep` command
+# or install permanently:
+uv tool install lorekeep
 ```
 
 ## Quickstart
 
 ```bash
-# 1. bootstrap a data home (~/.config/lorekeep + ~/.local/share/lorekeep)
+# 1. bootstrap data home (config + schema + dirs + agent wiring)
 uvx lorekeep init
 
 # 2. add docs under the data home's raw/<namespace>/
-mkdir -p ~/.local/share/lorekeep/raw/backend
-cp your-docs.md ~/.local/share/lorekeep/raw/backend/
+mkdir -p ~/.local/share/lorekeep/raw/private
+cp your-docs.md ~/.local/share/lorekeep/raw/private/
 
 # 3. set a provider (edit ~/.config/lorekeep/config.yaml), then compile
 uvx lorekeep compile                # raw/*.md → graph/facts.jsonl + wiki/
 
 # 4. wire a coding agent (writes a portable .mcp.json)
-uvx lorekeep mcp add --agent claude --ns backend
+uvx lorekeep mcp add --agent claude --ns private
 
 # 5. verify
 uvx lorekeep doctor
