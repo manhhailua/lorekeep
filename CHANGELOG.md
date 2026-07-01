@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/manhhailua/lorekeep/compare/v0.8.4...v0.9.0) (2026-07-01)
+
+
+### Features
+
+* interactive provider/model picker with litellm catalog ([#89](https://github.com/manhhailua/lorekeep/issues/89)) ([ff915f5](https://github.com/manhhailua/lorekeep/commit/ff915f590c7de72f23e8ce9e8f82453a0a69763d))
+
 ## [0.8.4](https://github.com/manhhailua/lorekeep/compare/v0.8.3...v0.8.4) (2026-06-30)
 
 
