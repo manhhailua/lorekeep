@@ -6,6 +6,8 @@
 *.sqlite-*
 
 .mcp.json
+opencode.json
+.opencode/
 
 # Python
 __pycache__/

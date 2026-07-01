@@ -82,12 +82,15 @@ def test_backup_never_tracks_secret_or_regenerable(tmp_path: Path):
     (home / "graph").mkdir()
     (home / "graph" / "facts.jsonl").write_text("{}")
     (home / "graph" / "manifest.json").write_text("{}")
+    (home / "wiki").mkdir()
+    (home / "wiki" / "index.md").write_text("# secret in wiki")
     (home / "cache.json").write_text("{}")
     backup(home)
     tracked = _tracked(home)
     assert "config.yaml" not in tracked
     assert "graph/facts.jsonl" not in tracked
     assert "graph/manifest.json" not in tracked
+    assert "wiki/index.md" not in tracked
     assert "cache.json" not in tracked
 
 

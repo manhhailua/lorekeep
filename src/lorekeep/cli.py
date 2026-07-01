@@ -498,21 +498,93 @@ def _interactive_init(p: dict) -> tuple[str, str, str]:
     so the caller can write the first file ``raw/<ns>/about.md``.
     """
     import yaml
+    from lorekeep.providers import (
+        list_models, search_providers,
+        format_cost, is_dynamic, POPULAR,
+    )
 
     typer.echo("\n=== Lorekeep setup ===\n")
 
-    provider_menu = "Choose an LLM provider:\n" + "\n".join(
-        f"  {k}. {v['label']}" for k, v in PROVIDER_PRESETS.items()
-    )
-    choice = typer.prompt(provider_menu, default="1")
-    preset = PROVIDER_PRESETS.get(choice, PROVIDER_PRESETS["1"])
-    typer.echo(f"  → {preset['label']}\n")
+    # ── Provider selection ─────────────────────────────────────────────
+    typer.echo("Popular providers:")
+    for i, prov in enumerate(POPULAR, 1):
+        typer.echo(f"  {i}. {prov}")
+    typer.echo(f"  {len(POPULAR) + 1}. [Search all providers]")
+    typer.echo(f"  {len(POPULAR) + 2}. [Skip — configure later]")
 
-    model = typer.prompt("Model (litellm string)", default=preset["model"])
+    choice = typer.prompt("\nChoice", default="1")
 
-    api_key = None
-    if preset.get("api_key_env"):
-        # Inline key, stored in the gitignored config.yaml. Empty input = skip.
+    idx = int(choice) if choice.isdigit() else 0
+    if idx == len(POPULAR) + 2 or choice.lower() == "skip":
+        typer.echo("  → Skipped (edit config.yaml to add a provider later)\n")
+        ns = typer.prompt("Default namespace", default="private")
+        name = typer.prompt("Your name", default="")
+        bio = typer.prompt("Bio (one-line intro)", default="")
+        _write_config(p, backend="openai", model="gpt-4o-mini",
+                       api_base=None, api_key_env=None, api_key=None, ns=ns)
+        return ns, name, bio
+
+    if idx == len(POPULAR) + 1 or choice.lower() == "search":
+        query = typer.prompt("Type provider name to search", default="")
+        from lorekeep.providers import list_providers
+        all_providers = list_providers()
+        results = search_providers(query, all_providers)
+        if not results:
+            typer.echo("  → No matches. Using default (openai).")
+            provider_name = "openai"
+        else:
+            typer.echo("")
+            for i, (prov, count) in enumerate(results[:20], 1):
+                typer.echo(f"  {i}. {prov} ({count} models)")
+            sub = typer.prompt("Choice", default="1")
+            sub_idx = int(sub) if sub.isdigit() else 1
+            provider_name = results[min(sub_idx - 1, len(results) - 1)][0]
+    elif 1 <= idx <= len(POPULAR):
+        provider_name = POPULAR[idx - 1]
+    else:
+        provider_name = "openai"
+
+    typer.echo(f"  → {provider_name}\n")
+
+    # ── Model selection ────────────────────────────────────────────────
+    if is_dynamic(provider_name):
+        model = typer.prompt(
+            f"Model name (free-text for {provider_name})",
+            default="llama3.2" if provider_name == "ollama" else "",
+        )
+        api_base = typer.prompt(
+            "API base URL", default="http://localhost:11434" if provider_name == "ollama" else "",
+        ) or None
+    else:
+        models = list_models(provider_name)
+        if models:
+            typer.echo("Models (chat, sorted by cost):")
+            for i, m in enumerate(models[:20], 1):
+                fc = format_cost(m.input_cost)
+                fc_out = format_cost(m.output_cost)
+                ctx = f"{m.max_input_tokens // 1000}K" if m.max_input_tokens else "?"
+                typer.echo(f"  {i}. {m.model}  in={fc} out={fc_out} ctx={ctx}")
+            typer.echo(f"  {len(models) + 1}. [Type custom model name]")
+            mchoice = typer.prompt("Choice", default="1")
+            midx = int(mchoice) if mchoice.isdigit() else 1
+            if 1 <= midx <= len(models):
+                model = models[midx - 1].model
+            elif midx == len(models) + 1:
+                model = typer.prompt("Model name (litellm string)", default="")
+            else:
+                model = models[0].model
+        else:
+            model = typer.prompt("Model name (litellm string)", default="")
+        api_base = None
+
+    typer.echo(f"  → {model}\n")
+
+    # ── API key (skip for local providers) ─────────────────────────────
+    env_var = None
+    if is_dynamic(provider_name):
+        typer.echo("  → No API key needed for local provider.\n")
+        api_key = None
+    else:
         api_key = typer.prompt(
             "API key (saved into the gitignored config.yaml)",
             default="",
@@ -521,22 +593,39 @@ def _interactive_init(p: dict) -> tuple[str, str, str]:
         if api_key:
             typer.echo("  → key stored in config.yaml\n")
         else:
-            typer.echo("  → skipped (add one to config.yaml later)\n")
-    else:
-        typer.echo("  → No API key needed for this provider.\n")
+            env_var = typer.prompt(
+                "API key env var name (or skip)",
+                default=f"{provider_name.upper().replace('-', '_')}_API_KEY",
+            )
+            if env_var.lower() not in ("skip", ""):
+                typer.echo(f"  → set {env_var} before compiling\n")
+            else:
+                env_var = None
+                typer.echo("  → skipped (add key to config.yaml later)\n")
 
-    ns = typer.prompt("Default namespace", default="me")
-    name = typer.prompt("Your name (what the agent calls you)", default="")
-    bio = typer.prompt("Bio (one-line intro about you)", default="")
+    # ── Namespace + profile ────────────────────────────────────────────
+    ns = typer.prompt("Default namespace", default="private")
+    name = typer.prompt("Your name", default="")
+    bio = typer.prompt("Bio (one-line intro)", default="")
 
+    _write_config(
+        p, backend="openai", model=model, api_base=api_base,
+        api_key_env=env_var if not api_key else None,
+        api_key=api_key, ns=ns,
+    )
+    return ns, name, bio
+
+
+def _write_config(p, backend, model, api_base, api_key_env, api_key, ns):
+    """Write config.yaml from provider selection."""
+    import yaml
     install_source = "local" if (Path.cwd() / ".lorekeep").exists() else "pypi"
-
     config = {
         "provider": {
-            "backend": preset["backend"],
+            "backend": backend,
             "model": model,
-            "api_base": preset["api_base"],
-            "api_key_env": None,
+            "api_base": api_base,
+            "api_key_env": api_key_env,
             "api_key": api_key,
             "temperature": 0.0,
         },
@@ -545,7 +634,6 @@ def _interactive_init(p: dict) -> tuple[str, str, str]:
         "install_source": install_source,
     }
     p["config"].write_text(yaml.dump(config, default_flow_style=False, sort_keys=False))
-    return ns, name, bio
 
 
 def _auto_wire_agents(p: dict, ns: str) -> None:

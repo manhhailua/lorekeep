@@ -43,18 +43,25 @@ def test_init_yes_flag_skips_prompts(tmp_path: Path, monkeypatch):
 
 
 def test_init_interactive(tmp_path: Path, monkeypatch):
-    """Interactive: DashScope, default model, empty key, ns=myteam, name, bio."""
+    """Interactive: deepseek (3), default model, empty key + env var, ns, name, bio."""
     home = tmp_path / "home"
     monkeypatch.setenv("LOREKEEP_HOME", str(home))
     monkeypatch.setattr("lorekeep.cli._is_interactive", lambda: True)
 
-    # provider=3 (DashScope), model=default, key=empty, ns=myteam, name=Alice, bio=...
-    result = runner.invoke(app, ["init"], input="3\n\n\nmyteam\nAlice\nBuilds backend infra\n")
+    # Mock list_models to avoid slow litellm calls
+    from lorekeep.providers import ModelInfo
+    monkeypatch.setattr(
+        "lorekeep.providers.list_models",
+        lambda p: [ModelInfo("deepseek-chat", p, "chat", 0.28e-6, 0.42e-6, 131000, True)]
+    )
+
+    # provider=3 (deepseek), model=1, key=empty, env=DEEPSEEK_API_KEY, ns=myteam, name, bio
+    result = runner.invoke(app, ["init"], input="3\n1\n\n\nmyteam\nAlice\nBuilds backend infra\n")
     assert result.exit_code == 0, result.stdout
     cfg = yaml.safe_load((home / "config.yaml").read_text())
-    assert cfg["provider"]["model"] == "openai/qwen-plus"
+    assert cfg["provider"]["model"] == "deepseek-chat"
     assert cfg["provider"]["api_key"] is None
-    assert cfg["provider"]["api_key_env"] is None
+    assert cfg["provider"]["api_key_env"] == "DEEPSEEK_API_KEY"
     assert cfg["ns"]["default"] == ["myteam"]
     about = home / "raw" / "myteam" / "about.md"
     assert about.exists()
@@ -64,15 +71,22 @@ def test_init_interactive(tmp_path: Path, monkeypatch):
 
 
 def test_init_interactive_stores_inline_key(tmp_path: Path, monkeypatch):
-    """Interactive: OpenAI preset with a typed key is stored inline in config.yaml."""
+    """Interactive: OpenAI (1) with inline key stored in config.yaml."""
     home = tmp_path / "home"
     monkeypatch.setenv("LOREKEEP_HOME", str(home))
     monkeypatch.setattr("lorekeep.cli._is_interactive", lambda: True)
 
-    # provider=1 (OpenAI), model=default, key=sk-testKEY, ns=me, name, bio
-    result = runner.invoke(app, ["init"], input="1\n\nsk-testKEY\nme\nBob\nlocal dev\n")
+    from lorekeep.providers import ModelInfo
+    monkeypatch.setattr(
+        "lorekeep.providers.list_models",
+        lambda p: [ModelInfo("gpt-4o-mini", p, "chat", 0.15e-6, 0.6e-6, 128000, True)]
+    )
+
+    # provider=1 (openai), model=1, key=sk-testKEY, ns=me, name, bio
+    result = runner.invoke(app, ["init"], input="1\n1\nsk-testKEY\nme\nBob\nlocal dev\n")
     assert result.exit_code == 0, result.stdout
     cfg = yaml.safe_load((home / "config.yaml").read_text())
+    assert cfg["provider"]["model"] == "gpt-4o-mini"
     assert cfg["provider"]["api_key"] == "sk-testKEY"
     assert cfg["provider"]["api_key_env"] is None
     assert cfg["ns"]["default"] == ["me"]
@@ -82,16 +96,26 @@ def test_init_interactive_stores_inline_key(tmp_path: Path, monkeypatch):
 
 
 def test_init_interactive_ollama_no_key(tmp_path: Path, monkeypatch):
-    """Ollama preset: no API key prompt."""
+    """Ollama: free-text model, api_base prompt, no API key needed."""
     home = tmp_path / "home"
     monkeypatch.setenv("LOREKEEP_HOME", str(home))
     monkeypatch.setattr("lorekeep.cli._is_interactive", lambda: True)
 
-    # Ollama (4), default model, ns=myproject, name, bio
-    result = runner.invoke(app, ["init"], input="4\n\nmyproject\nCJ\ndemo\n")
+    # Ollama is now in POPULAR list but is dynamic — free-text model + api_base
+    # Find ollama's index in POPULAR list
+    from lorekeep.providers import POPULAR
+    ollama_idx = POPULAR.index("ollama") + 1 if "ollama" in POPULAR else None
+
+    if ollama_idx is None:
+        # ollama not in POPULAR, use search
+        pytest.skip("ollama not in POPULAR list")
+
+    # provider=ollama_idx, model=llama3.2, api_base=default, ns=myproject, name, bio
+    inp = f"{ollama_idx}\nllama3.2\n\nmyproject\nCJ\ndemo\n"
+    result = runner.invoke(app, ["init"], input=inp)
     assert result.exit_code == 0, result.stdout
     cfg = yaml.safe_load((home / "config.yaml").read_text())
-    assert cfg["provider"]["model"] == "ollama/llama3.2"
+    assert cfg["provider"]["model"] == "llama3.2"
     assert cfg["provider"]["api_key"] is None
     assert cfg["ns"]["default"] == ["myproject"]
 

@@ -14,8 +14,10 @@ BACKUP_GITIGNORE = """\
 config.yaml
 graph/facts.jsonl
 graph/manifest.json
+wiki/
 cache.json
 pending/
+fts.sqlite
 """
 
 
