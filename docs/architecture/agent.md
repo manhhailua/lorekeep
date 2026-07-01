@@ -1,6 +1,6 @@
 # Autonomous agent
 
-> **Status: partially implemented.** The daemon (`lorekeep agent watch`), `agent ingest`, `agent lint`, `agent suggest`, and `agent status` are shipped. The daemon auto-compiles on `raw/` change, auto-resolves pending journals, and delta-imports Claude session memory. Scheduled nightly lint / weekly suggest, schema evolve (`agent evolve`), and `--auto-fix` are planned. MCP write tools (runtime fact proposals) are tracked in [#15](https://github.com/manhhailua/lorekeep/issues/15).
+> **Status: partially implemented.** The daemon (`lorekeep agent watch`), `agent ingest`, `agent lint`, `agent suggest`, and `agent status` are shipped. The daemon auto-compiles on `raw/` change (file count + mtime tracking), auto-resolves pending journals, and delta-imports **Claude + Codex** session memory. Session re-discovery happens every polling cycle (detects new sessions after daemon start). Cursor/opencode are handled by session-end hooks (`lorekeep hook`). Scheduled nightly lint / weekly suggest, schema evolve (`agent evolve`), and `--auto-fix` are planned.
 
 The autonomous agent (`lorekeep agent`) is the engine that keeps the knowledge graph continuously up-to-date. It watches for changes, triggers compiles and resolves, runs health checks, and suggests improvements — all without manual curator intervention for routine operations.
 
@@ -29,16 +29,15 @@ Runs continuously, polling or watching the filesystem. Handles all routine maint
 
 ```
 lorekeep agent watch
-  ├── Watch raw/ for new or changed .md files
-  │   └── On change → hash check → auto-compile → resolve
-  ├── Watch agent session dirs for new sessions
-  │   └── On new session → auto-import (quick mode)
-  ├── Periodic lint (nightly, configurable)
-  │   └── Generate report + auto-fix high-confidence issues
-  ├── Periodic resolve (every 5 min if pending)
-  │   └── Merge pending journals into facts.jsonl
-  └── Periodic suggest (weekly)
-      └── Analyze graph structure → report gaps, orphans, stale
+  ├── Watch raw/ for new or changed .md files (count + mtime)
+  │   └── On change → hash check → auto-compile → resolve → wiki
+  ├── Watch pending/ for new journal entries
+  │   └── On change → auto-resolve → wiki regen
+  ├── Watch Claude memory/ + Codex memories/ (re-discover every cycle)
+  │   └── On change → delta quick import → raw/ (zero LLM cost)
+  │       → triggers raw/ watch → auto-compile
+  │   Cursor/opencode: no quick-import path → session-end hooks
+  └── (planned) Periodic lint, suggest, schema evolve
 ```
 
 ### Compile trigger

@@ -67,6 +67,9 @@ Pure JSONL → markdown transform (no LLM). `generate_wiki(graph_dir, wiki_dir)`
 ### Path resolution (`paths.py`)
 Pure (no I/O), 4-tier precedence high→low: explicit `LOREKEEP_RAW/OUT/CACHE/SCHEMA/CONFIG/WIKI` env → `LOREKEEP_HOME` → **dev mode** (`.lorekeep/` present in CWD, or `LOREKEEP_DEV=1`; auto-detected in a source checkout) — all data lives under `cwd/.lorekeep/` (`config.yaml`, `schema.json`, `raw/`, `graph/`, `wiki/`, `pending/`, `cache.json`), mirroring the `LOREKEEP_HOME` layout → XDG (`platformdirs`). Running `uv run lorekeep …` from the repo uses the repo's own `.lorekeep/` data home with zero migration.
 
+### Daemon (`cli.py` watch command)
+Polls every 60s. `_discover_watchable_sessions()` finds Claude `memory/` + Codex `memories/` dirs (called every cycle — detects new sessions after daemon start). `_quick_import_session()` dispatches per-agent quick import (zero LLM cost — copies `.md` files to `raw/<agent>-memory/`). Cursor/opencode have no quick-import path — handled by session-end hooks (`lorekeep hook`). raw/ watch tracks both file count AND mtime — detects new files even if mtime is same (fast filesystem). pending/ watch triggers `_do_auto_resolve()` → merge journals → wiki regen. Init calls `_auto_import_and_compile()` which runs compile + wiki regen + auto-resolve — graph + wiki produced immediately if API key available.
+
 ### Provider pluggability (`compile/providers.py`)
 `LiteLLMProvider` (OpenAI / Anthropic / DashScope/Qwen / Ollama via litellm model strings) and `FakeProvider` (tests/offline). Model is set in `config.yaml` as a litellm string.
 

@@ -122,9 +122,11 @@ Three approaches, from fully automatic to manual:
 ```bash
 # 1. Daemon (recommended) — fully autonomous
 uvx lorekeep agent watch
-# Watches raw/ → auto-compile on change
+# Watches raw/ → auto-compile on change (file count + mtime tracking)
 # Watches pending/ → auto-resolve
-# Watches Claude session memory/ → delta quick-import into raw/
+# Watches Claude memory/ + Codex memories/ → delta quick-import (zero LLM)
+# Session re-discovery every cycle — detects new sessions after daemon start
+# Cursor/opencode: no quick-import → session-end hooks (`lorekeep hook`)
 # Use --no-watch-sessions to disable session watching
 
 # 2. Manual with cron — scheduled (Linux/macOS cron)
