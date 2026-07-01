@@ -478,7 +478,28 @@ def init(
     # --- One-click chain: wire → import → compile → daemon -----------------
     if not config_existed:
         _auto_wire_agents(p, ns)
+
+        config = load_config(p["config"])
+        if _has_provider(config):
+            typer.echo("\n  Compiling your docs into the knowledge graph...")
         _auto_import_and_compile(p)
+
+        # Show graph/wiki status after compile
+        facts_path = p["out"] / "facts.jsonl"
+        wiki_path = p["wiki"] / "index.md"
+        if facts_path.exists():
+            from lorekeep.store.graph import GraphStore
+            store = GraphStore.from_jsonl(facts_path)
+            typer.echo(
+                f"  graph: {len(store.all_nodes())} nodes, {len(store.all_edges())} edges"
+            )
+            if wiki_path.exists():
+                typer.echo(f"  wiki: {p['wiki']} (open in Obsidian to browse)")
+        else:
+            typer.echo(
+                "  graph: empty — add docs under raw/ then run `lorekeep compile`"
+            )
+
         typer.echo("\nRestart your agent → lorekeep tools are available.")
 
     # Daemon: start on fresh init or revive if dead (regardless of config_existed)
@@ -504,6 +525,12 @@ def _interactive_init(p: dict) -> tuple[str, str, str]:
     )
 
     typer.echo("\n=== Lorekeep setup ===\n")
+
+    typer.echo(
+        "Lorekeep uses an LLM at compile time to extract entities, relationships,\n"
+        "and temporal facts from your markdown docs. It is NOT used at query time\n"
+        "(agents read the graph directly via MCP — zero LLM cost per query).\n"
+    )
 
     # ── Provider selection ─────────────────────────────────────────────
     typer.echo("Popular providers:")
@@ -547,6 +574,7 @@ def _interactive_init(p: dict) -> tuple[str, str, str]:
     typer.echo(f"  → {provider_name}\n")
 
     # ── Model selection ────────────────────────────────────────────────
+    typer.echo(f"Select a model for {provider_name} (used for knowledge extraction):\n")
     if is_dynamic(provider_name):
         model = typer.prompt(
             f"Model name (free-text for {provider_name})",
@@ -606,6 +634,7 @@ def _interactive_init(p: dict) -> tuple[str, str, str]:
     # ── Namespace + profile ────────────────────────────────────────────
     ns = typer.prompt("Default namespace", default="private")
     name = typer.prompt("Your name", default="")
+    typer.echo("  (your bio → raw/<ns>/about.md → compiled into the graph)")
     bio = typer.prompt("Bio (one-line intro)", default="")
 
     _write_config(
@@ -709,10 +738,14 @@ def _auto_import_and_compile(p: dict) -> None:
     has_key = _has_provider(config)
 
     if not has_key:
-        if imported:
-            typer.echo("  memory files imported to raw/ — compile pending (add API key to config.yaml)")
-        else:
-            typer.echo("  graph empty — run `lorekeep compile` after adding docs or importing sessions")
+        env_hint = ""
+        if config.provider.api_key_env:
+            env_hint = f" (export {config.provider.api_key_env}=sk-... before running `lorekeep compile`)"
+        elif not config.provider.api_key:
+            env_hint = " (add api_key to config.yaml, then run `lorekeep compile`)"
+        typer.echo(
+            f"  docs saved to raw/ but not yet compiled{env_hint}"
+        )
         return
 
     try:
