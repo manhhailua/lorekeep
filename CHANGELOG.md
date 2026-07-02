@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/manhhailua/lorekeep/compare/v0.10.0...v0.10.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* add explicit permissions to lint-commits workflow ([#97](https://github.com/manhhailua/lorekeep/issues/97)) ([17480c5](https://github.com/manhhailua/lorekeep/commit/17480c56bd77b516c2351e843172e133d3d440bd))
+
 ## [0.10.0](https://github.com/manhhailua/lorekeep/compare/v0.9.0...v0.10.0) (2026-07-02)
 
 
