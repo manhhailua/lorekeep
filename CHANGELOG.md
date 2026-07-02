@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/manhhailua/lorekeep/compare/v0.11.0...v0.11.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* extract_json + complete were outside LiteLLMProvider class ([75d441a](https://github.com/manhhailua/lorekeep/commit/75d441a00d80c66ec933a69989e8c69b25664232))
+
 ## [0.11.0](https://github.com/manhhailua/lorekeep/compare/v0.10.2...v0.11.0) (2026-07-02)
 
 
