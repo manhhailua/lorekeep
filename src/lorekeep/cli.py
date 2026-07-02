@@ -527,17 +527,19 @@ def init(
     else:
         typer.echo("  (existing config/schema preserved)")
 
-    # First file: the user's about.md (profile from onboarding) — replaces the
-    # generic welcome sample. Written only on first init (fresh config + empty raw/).
-    if not config_existed and not any(p["raw"].rglob("*.md")):
+    # First file: the user's about.md (profile from onboarding).
+    # Written on first init — always, even if raw/ has other files.
+    if not config_existed:
         ns_dir = p["raw"] / ns
         ns_dir.mkdir(parents=True, exist_ok=True)
-        about_md = (
-            f"# {name or '(your name)'}\n\n"
-            f"{bio or '(your bio — a one-line intro about you)'}\n"
-        )
-        (ns_dir / "about.md").write_text(about_md)
-        typer.echo(f"  wrote: {ns_dir / 'about.md'}")
+        about_path = ns_dir / "about.md"
+        if not about_path.exists():
+            about_md = (
+                f"# {name or '(your name)'}\n\n"
+                f"{bio or '(your bio — a one-line intro about you)'}\n"
+            )
+            about_path.write_text(about_md)
+            typer.echo(f"  wrote: {about_path}")
 
     # --- One-click chain: wire → import → compile → daemon -----------------
     if not config_existed:

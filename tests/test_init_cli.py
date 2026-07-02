@@ -132,15 +132,32 @@ def test_init_preserves_existing_config(tmp_path: Path, monkeypatch):
     assert (home / "raw").is_dir()
 
 
-def test_init_no_about_when_raw_has_files(tmp_path: Path, monkeypatch):
-    """If raw/ already has .md files, don't write about.md."""
+def test_init_writes_about_even_with_existing_raw_files(tmp_path: Path, monkeypatch):
+    """about.md is written on first init even if raw/ has other .md files."""
     home = tmp_path / "home"
     monkeypatch.setenv("LOREKEEP_HOME", str(home))
     (home / "raw" / "existing").mkdir(parents=True)
     (home / "raw" / "existing" / "doc.md").write_text("# existing")
     result = runner.invoke(app, ["init"])
     assert result.exit_code == 0, result.stdout
-    assert not (home / "raw" / "public" / "about.md").exists()
+    # about.md written to default ns (public) alongside existing files
+    assert (home / "raw" / "public" / "about.md").exists()
+
+
+def test_init_no_about_on_second_run(tmp_path: Path, monkeypatch):
+    """Second init (config exists) doesn't overwrite about.md."""
+    home = tmp_path / "home"
+    monkeypatch.setenv("LOREKEEP_HOME", str(home))
+    result = runner.invoke(app, ["init"])
+    assert result.exit_code == 0
+    about = home / "raw" / "public" / "about.md"
+    assert about.exists()
+    about.write_text("# Custom Bio\n\nDon't overwrite me.\n")
+
+    # Second init
+    result2 = runner.invoke(app, ["init"])
+    assert result2.exit_code == 0
+    assert "Don't overwrite me" in about.read_text()
 
 
 def test_init_auto_wires_detected_agent(tmp_path: Path, monkeypatch):
