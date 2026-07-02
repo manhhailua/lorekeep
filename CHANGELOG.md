@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.0](https://github.com/manhhailua/lorekeep/compare/v0.9.0...v0.10.0) (2026-07-02)
+
+
+### Features
+
+* cross-agent session watch + init→graph + daemon hardening ([#95](https://github.com/manhhailua/lorekeep/issues/95)) ([c95c169](https://github.com/manhhailua/lorekeep/commit/c95c169495b030a98b86d511d76c5e643ec97f96))
+
+
+### Bug Fixes
+
+* onboarding clarity — LLM purpose, compile feedback, bio→graph ([#93](https://github.com/manhhailua/lorekeep/issues/93)) ([e12f96e](https://github.com/manhhailua/lorekeep/commit/e12f96eefb5240a5cbc5132a1ca393703c62e183))
+
 ## [0.9.0](https://github.com/manhhailua/lorekeep/compare/v0.8.4...v0.9.0) (2026-07-01)
 
 
