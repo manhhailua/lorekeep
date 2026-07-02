@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.2](https://github.com/manhhailua/lorekeep/compare/v0.10.1...v0.10.2) (2026-07-02)
+
+
+### Bug Fixes
+
+* about.md not written when raw/ has existing files ([#99](https://github.com/manhhailua/lorekeep/issues/99)) ([b7b9a70](https://github.com/manhhailua/lorekeep/commit/b7b9a70f8a8cb2d2c99b573609f976c36dbe0522))
+
+
+### Documentation
+
+* add backup + sync guide to README ([#100](https://github.com/manhhailua/lorekeep/issues/100)) ([82c850f](https://github.com/manhhailua/lorekeep/commit/82c850f13c349632bb397cdec88946f66817b5b4))
+
 ## [0.10.1](https://github.com/manhhailua/lorekeep/compare/v0.10.0...v0.10.1) (2026-07-02)
 
 
