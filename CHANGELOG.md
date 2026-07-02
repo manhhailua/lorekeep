@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0](https://github.com/manhhailua/lorekeep/compare/v0.10.2...v0.11.0) (2026-07-02)
+
+
+### Features
+
+* daemon auto-backup + sync — pull rebase before push ([#102](https://github.com/manhhailua/lorekeep/issues/102)) ([ffe77c6](https://github.com/manhhailua/lorekeep/commit/ffe77c69e6cf764b2a9d297d8dccd3345c6ab580))
+
+
+### Bug Fixes
+
+* use PAT for release-please — GITHUB_TOKEN PRs don't trigger workflows ([#103](https://github.com/manhhailua/lorekeep/issues/103)) ([ca03222](https://github.com/manhhailua/lorekeep/commit/ca03222555fde2e03047416231e4f5991f7e1146))
+
 ## [0.10.2](https://github.com/manhhailua/lorekeep/compare/v0.10.1...v0.10.2) (2026-07-02)
 
 
