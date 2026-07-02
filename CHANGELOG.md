@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.2](https://github.com/manhhailua/lorekeep/compare/v0.11.1...v0.11.2) (2026-07-02)
+
+
+### Bug Fixes
+
+* verify PAT release pipeline end-to-end ([#111](https://github.com/manhhailua/lorekeep/issues/111)) ([0370362](https://github.com/manhhailua/lorekeep/commit/037036213b94686e2af37aec307619cb783edd32))
+
 ## [0.11.1](https://github.com/manhhailua/lorekeep/compare/v0.11.0...v0.11.1) (2026-07-02)
 
 
