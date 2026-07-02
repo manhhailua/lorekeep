@@ -1067,8 +1067,46 @@ def import_cmd(
 
 # --- Agent subcommand group -----------------------------------------------
 
-agent_app = typer.Typer(help="Autonomous agent operations: ingest, lint, suggest, status, watch.")
+agent_app = typer.Typer(help="Autonomous agent operations: ingest, lint, suggest, status, watch, daemon.")
 app.add_typer(agent_app, name="agent")
+
+daemon_app = typer.Typer(help="Install/uninstall daemon as persistent OS service.")
+agent_app.add_typer(daemon_app, name="daemon")
+
+
+@daemon_app.command("install")
+def daemon_install() -> None:
+    """Install daemon as a persistent OS service (survives restart).
+
+    Linux: systemd user service. macOS: launchd LaunchAgent. Windows: Startup folder.
+    """
+    from lorekeep.daemon_service import install as svc_install
+    p = resolve_paths()
+    try:
+        platform_name, config_path = svc_install(p["home"])
+        typer.echo(f"daemon: installed as {platform_name} service → {config_path}")
+        typer.echo(f"daemon: will auto-start on login/restart")
+    except RuntimeError as exc:
+        typer.echo(f"daemon: {exc}")
+        raise typer.Exit(code=1)
+
+
+@daemon_app.command("uninstall")
+def daemon_uninstall() -> None:
+    """Remove the persistent daemon service."""
+    from lorekeep.daemon_service import uninstall as svc_uninstall
+    removed = svc_uninstall()
+    if removed:
+        typer.echo("daemon: service removed")
+    else:
+        typer.echo("daemon: no service found")
+
+
+@daemon_app.command("status")
+def daemon_status() -> None:
+    """Check if the persistent daemon service is installed and running."""
+    from lorekeep.daemon_service import status as svc_status
+    typer.echo(svc_status())
 
 
 @agent_app.command()

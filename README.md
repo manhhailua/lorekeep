@@ -118,6 +118,7 @@ The full journey from install to continuous use — see the
 | 6. Serve | `lorekeep serve` | MCP server (9 read + 5 write tools, lazy-reload) |
 | 7. Keep current | `lorekeep agent watch &` | Daemon: auto-compile, auto-resolve, delta-import sessions |
 | 8. Back up | `lorekeep backup` | Push data home to private git repo (raw/ + schema.json) |
+| 9. Persist daemon | `lorekeep agent daemon install` | Survive restart (systemd/launchd/startup) |
 
 Steps 1–6 are one-time setup. Step 7 runs in the background for continuous
 updates. Step 8 syncs across machines.
