@@ -117,26 +117,24 @@ entries, polling every 60s).
 
 ## Keeping the graph current
 
-Three approaches, from fully automatic to manual:
+Two modes, from fully automatic to agent-controlled:
 
 ```bash
-# 1. Daemon (recommended) — fully autonomous
+# Mode 1: Daemon (default) — fully autonomous, follows Karpathy LLM Wiki pattern
 uvx lorekeep agent watch
-# Watches raw/ → auto-compile on change (file count + mtime tracking)
+# Watches raw/ → auto-compile (file count + mtime tracking)
 # Watches pending/ → auto-resolve
 # Watches Claude memory/ + Codex memories/ → delta quick-import (zero LLM)
 # Session re-discovery every cycle — detects new sessions after daemon start
-# Cursor/opencode: no quick-import → session-end hooks (`lorekeep hook`)
+# Survives restart: lorekeep agent daemon install (systemd/launchd/startup)
 # Use --no-watch-sessions to disable session watching
 
-# 2. Manual with cron — scheduled (Linux/macOS cron)
-# */5 * * * * cd /path/to/lorekeep && uvx lorekeep resolve
-# 0 3 * * *   cd /path/to/lorekeep && uvx lorekeep agent lint
-
-# 3. Manual — curator-triggered
-uvx lorekeep compile          # rebuild from raw/
-uvx lorekeep resolve          # merge pending journals into facts.jsonl
-uvx lorekeep agent lint       # health check
+# Mode 2: Agent-controlled (--no-watch on init) — no daemon
+# The coding agent triggers updates via shell commands:
+#   lorekeep compile   # does compile + resolve + wiki (all-in-one, uses LLM)
+#   lorekeep resolve   # merge agent-proposed facts only (zero LLM cost)
+#   lorekeep wiki      # regenerate wiki from existing graph
+# MCP server lazy-reloads facts.jsonl on next query — no daemon needed
 ```
 
 ## Connect once (lazy-reload)

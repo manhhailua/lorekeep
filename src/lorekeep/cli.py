@@ -109,7 +109,7 @@ def hook() -> None:
 
 @app.command()
 def compile() -> None:
-    """Compile raw/ into graph/facts.jsonl."""
+    """Compile raw/ → facts.jsonl + merge pending + generate wiki (all-in-one)."""
     p = resolve_paths()
     schema = load_schema(p["schema"])
     config = load_config(p["config"])
@@ -571,6 +571,13 @@ def init(
         _start_daemon(p)
     elif watch and not _is_interactive():
         typer.echo("\n  (skipped daemon start in non-interactive mode — run `lorekeep agent watch` manually)")
+    else:
+        typer.echo(
+            "\n  Daemon disabled (--no-watch). Agent-controlled mode:\n"
+            "  - Run `lorekeep compile` after editing raw/*.md (does compile + resolve + wiki)\n"
+            "  - Run `lorekeep resolve` to merge agent-proposed facts (zero LLM cost)\n"
+            "  - MCP server lazy-reloads on next query — no daemon needed"
+        )
 
     if config_existed:
         typer.echo("\nAlready initialized.")
