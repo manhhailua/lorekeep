@@ -8,6 +8,14 @@ name: release-please
 # the git tag + GitHub Release, then the publish job builds and publishes to
 # PyPI via OIDC trusted publishing (no API token).
 #
+# IMPORTANT: Uses RELEASE_PLEASE_TOKEN (a Personal Access Token) instead of
+# GITHUB_TOKEN. PRs created by GITHUB_TOKEN don't trigger downstream workflow
+# runs (GitHub prevents this to avoid loops). A PAT-authored PR merge DOES
+# trigger the push event → release-please detects the release → creates tag.
+#
+# Setup: create a fine-grained PAT with contents:write + pull-requests:write,
+# add as repo secret RELEASE_PLEASE_TOKEN.
+#
 # PyPI trusted publisher must be configured with:
 #   workflow = release-please.yml, environment = pypi
 on:
@@ -35,7 +43,8 @@ jobs:
       - id: rp
         uses: googleapis/release-please-action@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # PAT required: GITHUB_TOKEN PRs don't trigger push events on merge
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
   publish:
     needs: release-please
@@ -93,4 +102,4 @@ jobs:
           gh pr merge --squash --auto --delete-branch \
             chore/sync-uv-lock-${{ needs.release-please.outputs.tag_name }}
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
