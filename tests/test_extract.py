@@ -1,7 +1,7 @@
 from datetime import date
 import json
 from lorekeep.models import DocChunk, Schema
-from lorekeep.compile.extract import build_prompt, parse_response, SYSTEM_PROMPT
+from lorekeep.compile.extract import build_prompt, build_system_prompt, parse_response, SYSTEM_PROMPT_BASE
 
 
 SCHEMA = Schema.load({
@@ -19,12 +19,16 @@ def make_chunk(text="x"):
                     text=text, namespace="teams/backend")
 
 
-def test_prompt_contains_schema_and_chunk():
+def test_system_prompt_contains_schema():
+    s = build_system_prompt(SCHEMA)
+    assert "service" in s and "depends_on" in s
+    assert "knowledge-graph extractor" in s
+
+
+def test_user_prompt_is_chunk_text_only():
     c = make_chunk("The payments-api is a Go service.")
     p = build_prompt(c, SCHEMA)
-    assert "service" in p and "depends_on" in p
-    assert "payments-api" in p
-    assert "raw/backend/a.md:3" in p
+    assert p == "The payments-api is a Go service."
 
 
 def test_parse_response_maps_nodes_and_edges():

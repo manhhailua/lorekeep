@@ -32,6 +32,8 @@ uv run lorekeep <command>                    # run the CLI in dev mode
 | `wiki` | Regenerate `wiki/` from `facts.jsonl` (Obsidian-compatible markdown) |
 | `serve [--transport stdio\|http]` | Run the MCP server (9 read + 5 write tools) |
 | `mcp add --agent claude\|cursor\|codex\|opencode --ns NS` | Write agent MCP config |
+| `config show` | Print config.yaml |
+| `config set <key> <value>` | Set nested config value (dot notation) |
 | `import --from claude\|cursor\|codex\|opencode` | Import agent sessions into `raw/` |
 | `doctor` | Verify install: graph loads, schema valid, a tool responds |
 | `backup [--init <remote-url>]` | Commit + push `.lorekeep/` to your private backup git repo |
@@ -71,7 +73,7 @@ Pure (no I/O), 4-tier precedence high→low: explicit `LOREKEEP_RAW/OUT/CACHE/SC
 Polls every 60s. `_discover_watchable_sessions()` finds Claude `memory/` + Codex `memories/` dirs (called every cycle — detects new sessions after daemon start). `_quick_import_session()` dispatches per-agent quick import (zero LLM cost — copies `.md` files to `raw/<agent>-memory/`). Cursor/opencode have no quick-import path — handled by session-end hooks (`lorekeep hook`). raw/ watch tracks both file count AND mtime — detects new files even if mtime is same (fast filesystem). pending/ watch triggers `_do_auto_resolve()` → merge journals → wiki regen. Init calls `_auto_import_and_compile()` which runs compile + wiki regen + auto-resolve — graph + wiki produced immediately if API key available.
 
 ### Provider pluggability (`compile/providers.py`)
-`LiteLLMProvider` (OpenAI / Anthropic / DashScope/Qwen / Ollama via litellm model strings) and `FakeProvider` (tests/offline). Model is set in `config.yaml` as a litellm string.
+`LiteLLMProvider` (OpenAI / Anthropic / DashScope/Qwen / DeepSeek / Ollama via litellm model strings) and `FakeProvider` (tests/offline). Model is set in `config.yaml` as a litellm string. `setup_observability()` configures litellm success/failure callbacks for Langfuse or Langsmith when `observability.provider` is set in config. Prefix cache optimized: schema in system prompt (constant across chunks), user message = chunk text only.
 
 ## Configuration & keys
 

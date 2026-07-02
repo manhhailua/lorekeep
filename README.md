@@ -244,6 +244,21 @@ The north star is *systematic thinking with complete information* — memory-rec
 benchmarks (LoCoMo, LongMemEval) are parity checks, not the optimization target.
 See [`docs/architecture/evaluation.md`](docs/architecture/evaluation.md).
 
+## Configuration
+
+After `init`, adjust settings without editing YAML:
+
+```bash
+lorekeep config show                                    # print current config
+lorekeep config set provider.model deepseek/deepseek-chat
+lorekeep config set provider.api_key_env DEEPSEEK_API_KEY
+lorekeep config set ns.default backend,frontend
+lorekeep config set observability.provider langfuse     # optional tracing
+```
+
+Observability (optional): set `observability.provider` to `langfuse` or
+`langsmith` for LLM call tracing via litellm callbacks.
+
 ## Project layout
 
 ```
@@ -251,13 +266,14 @@ src/lorekeep/
   models.py            shared contract (Node/Edge/Schema/Manifest)
   facts_io.py          facts.jsonl loader (store + eval)
   paths.py             4-tier path resolution (env/home/dev/XDG)
+  providers.py         litellm provider/model enumeration for init
   defaults.py          default schema + config (for `init`)
   config.py, schema_io.py
   compile/{ingest,extract,resolve,writer}.py    the compile pipeline
-  compile/providers.py                          LiteLLMProvider (OpenAI/Anthropic/Ollama)
+  compile/providers.py                          LiteLLMProvider + observability
   journal.py           append-only journal writer + loader
   agent.py             autonomous agent: ingest, lint, suggest, status, watch
-  store/{graph,fts}.py                          GraphStore + optional FTS cache
+  store/{graph,fts}.py                          GraphStore + FTS5 cache
   perm/ns.py                                    ScopedGraph permission chokepoint
   mcp_server.py                                 FastMCP + 9 read + 5 write tools
   wiki.py                                        Obsidian-compatible wiki generator
@@ -266,7 +282,7 @@ src/lorekeep/
   pipeline.py, cli.py
   eval/{gold,construction,retrieval}.py
   eval/locomo.py                                Tier-2 LoCoMo eval
-tests/                 ~310 tests
+tests/                 ~410 tests
 docs/                  README.md index, architecture/, guides/
 ```
 

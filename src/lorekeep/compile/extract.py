@@ -8,7 +8,7 @@ from typing import Any
 
 from lorekeep.models import DocChunk, Edge, Node, Schema
 
-SYSTEM_PROMPT = (
+SYSTEM_PROMPT_BASE = (
     "You are a knowledge-graph extractor. Read the document chunk and emit a JSON "
     'object {"nodes":[...], "edges":[...], "aliases":{...}}. '
     "Only use node_types and edge_types listed in the provided schema. "
@@ -19,18 +19,35 @@ SYSTEM_PROMPT = (
 )
 
 
-def build_prompt(chunk: DocChunk, schema: Schema) -> str:
+def build_system_prompt(schema: Schema) -> str:
+    """Build a constant system prompt including schema — cacheable across chunks.
+
+    Keeping schema in the system prompt (not user message) maximizes prefix
+    cache hits: the system message is identical for every chunk in a compile run.
+    """
     node_types = ", ".join(schema.node_types.keys())
     edge_types = ", ".join(
         f"{k}({v.from_}->{v.to})" for k, v in schema.edge_types.items()
     )
     return (
+        f"{SYSTEM_PROMPT_BASE}\n\n"
         f"Allowed node_types: {node_types}\n"
-        f"Allowed edge_types: {edge_types}\n\n"
-        f"Source: {chunk.src}\n"
-        f"Namespace: {chunk.namespace}\n\n"
-        f"Document chunk:\n{chunk.text}\n"
+        f"Allowed edge_types: {edge_types}"
     )
+
+
+# Backward compat
+SYSTEM_PROMPT = SYSTEM_PROMPT_BASE
+
+
+def build_prompt(chunk: DocChunk, schema: Schema) -> str:
+    """Build user message — just the chunk text (no schema/src/ns).
+
+    Schema is in the system prompt (see build_system_prompt). src and ns
+    are extracted from chunk by parse_response for provenance, not needed
+    in the LLM prompt.
+    """
+    return chunk.text
 
 
 def _parse_date(v: Any) -> date | None:
@@ -148,6 +165,7 @@ def extract_chunk(
     key = cache.key(chunk, schema.version, model)
     raw = cache.get(key)
     if raw is None:
-        raw = provider.extract_json(SYSTEM_PROMPT, build_prompt(chunk, schema))
+        system = build_system_prompt(schema)
+        raw = provider.extract_json(system, chunk.text)
         cache.set(key, raw)
     return parse_response(raw, chunk, schema)

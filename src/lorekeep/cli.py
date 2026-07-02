@@ -27,6 +27,17 @@ def _main() -> None:
 
 def _build_provider(config: Config) -> LiteLLMProvider:
     """Create a real LLM provider from config.  Shared by compile + import."""
+    from lorekeep.compile.providers import setup_observability
+
+    obs = config.observability
+    if obs.provider:
+        setup_observability(
+            provider=obs.provider,
+            api_key_env=obs.api_key_env,
+            project=obs.project,
+            api_url=obs.api_url,
+        )
+
     api_key = None
     if config.provider.api_key_env:
         api_key = os.environ.get(config.provider.api_key_env)
@@ -333,6 +344,59 @@ def serve(
 
 mcp_app = typer.Typer(help="Coding-agent integration.")
 app.add_typer(mcp_app, name="mcp")
+
+config_app = typer.Typer(help="View and edit lorekeep config.")
+app.add_typer(config_app, name="config")
+
+
+@config_app.command("show")
+def config_show() -> None:
+    """Print the current config.yaml."""
+    p = resolve_paths()
+    if not p["config"].exists():
+        typer.echo("No config.yaml found — run `lorekeep init` first.")
+        raise typer.Exit(code=1)
+    typer.echo(p["config"].read_text(encoding="utf-8"))
+
+
+@config_app.command("set")
+def config_set(
+    key: str = typer.Argument(..., help="Dot-notation key (e.g. provider.model)"),
+    value: str = typer.Argument(..., help="Value to set"),
+) -> None:
+    """Set a config value (e.g. `config set provider.model deepseek/deepseek-chat`)."""
+    import yaml
+    p = resolve_paths()
+    if not p["config"].exists():
+        typer.echo("No config.yaml found — run `lorekeep init` first.")
+        raise typer.Exit(code=1)
+
+    data = yaml.safe_load(p["config"].read_text(encoding="utf-8")) or {}
+
+    keys = key.split(".")
+    target = data
+    for k in keys[:-1]:
+        target = target.setdefault(k, {})
+
+    final_key = keys[-1]
+    if isinstance(target.get(final_key), list):
+        target[final_key] = [v.strip() for v in value.split(",")]
+    elif isinstance(target.get(final_key), bool):
+        target[final_key] = value.lower() in ("true", "1", "yes")
+    elif isinstance(target.get(final_key), int):
+        target[final_key] = int(value)
+    elif isinstance(target.get(final_key), float):
+        target[final_key] = float(value)
+    elif value.lower() in ("null", "none", ""):
+        target[final_key] = None
+    else:
+        target[final_key] = value
+
+    p["config"].write_text(
+        yaml.dump(data, default_flow_style=False, sort_keys=False),
+        encoding="utf-8",
+    )
+    typer.echo(f"  {key} = {value}")
 
 
 @mcp_app.command("add")

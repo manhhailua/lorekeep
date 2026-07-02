@@ -25,10 +25,19 @@ class NsConfig(BaseModel):
     token_map: dict[str, list[str]] = Field(default_factory=dict)
 
 
+class ObservabilityConfig(BaseModel):
+    """Optional observability integration via litellm callbacks."""
+    provider: str | None = None      # langfuse | langsmith
+    api_key_env: str | None = None   # env var name (e.g. LANGFUSE_PUBLIC_KEY)
+    project: str | None = None       # project name / dataset name
+    api_url: str | None = None       # self-hosted endpoint (langfuse)
+
+
 class Config(BaseModel):
     provider: ProviderConfig = Field(default_factory=ProviderConfig)
     compile: CompileConfig = Field(default_factory=CompileConfig)
     ns: NsConfig = Field(default_factory=NsConfig)
+    observability: ObservabilityConfig = Field(default_factory=ObservabilityConfig)
     install_source: str | None = None      # pypi | local | git+URL | path
 
 

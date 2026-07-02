@@ -52,6 +52,38 @@ class LiteLLMProvider:
         self.temperature = temperature
         self.api_key = api_key
 
+
+def setup_observability(
+    provider: str | None = None,
+    api_key_env: str | None = None,
+    project: str | None = None,
+    api_url: str | None = None,
+) -> None:
+    """Configure litellm callbacks for observability (langfuse/langsmith).
+
+    Called from cli._build_provider when observability config is set.
+    """
+    if not provider:
+        return
+
+    import os
+    import litellm
+
+    callbacks: list[str] = []
+
+    if provider == "langfuse":
+        callbacks.append("langfuse")
+        if api_url:
+            os.environ.setdefault("LANGFUSE_HOST", api_url)
+    elif provider == "langsmith":
+        callbacks.append("langsmith")
+        if project:
+            os.environ.setdefault("LANGCHAIN_PROJECT", project)
+
+    if callbacks:
+        litellm.success_callback = callbacks
+        litellm.failure_callback = callbacks
+
     def extract_json(self, system: str, user: str) -> str:
         import litellm  # imported lazily so tests need not install it
         resp = litellm.completion(
