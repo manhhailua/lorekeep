@@ -143,7 +143,7 @@ def wiki() -> None:
     typer.echo(f"wiki: {result['pages']} pages written to {p['wiki']}")
 
 
-@app.command(name="eval")
+@app.command(name="eval", hidden=True)
 def eval_cmd() -> None:
     """Run Tier-1 construction-quality evaluation vs the gold corpus."""
     p = resolve_paths()
@@ -160,7 +160,7 @@ def eval_cmd() -> None:
     typer.echo(json.dumps(report, indent=2, sort_keys=True))
 
 
-@app.command(name="eval-locomo")
+@app.command(name="eval-locomo", hidden=True)
 def eval_locomo_cmd(
     data: str = typer.Option("", "--data", help="Path to locomo10.json"),
     compile_first: bool = typer.Option(

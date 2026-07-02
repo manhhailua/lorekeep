@@ -27,8 +27,7 @@ uv run lorekeep <command>                    # run the CLI in dev mode
 | `init` | Bootstrap data home (config + schema + raw/graph dirs) |
 | `compile` | `raw/*.md` → `graph/facts.jsonl` + `manifest.json` + `wiki/` (runs the LLM pipeline, auto-generates wiki) |
 | `check` | Validate compiled graph loads, no dangling edges (exit 1 on failure) |
-| `eval` | Tier-1 construction P/R/F1 vs gold corpus + structure metrics |
-| `eval-locomo` | Tier-2 LoCoMo retrieval/temporal/abstention eval |
+| `check` | Validate compiled graph loads, no dangling edges (exit 1 on failure) |
 | `wiki` | Regenerate `wiki/` from `facts.jsonl` (Obsidian-compatible markdown) |
 | `serve [--transport stdio\|http]` | Run the MCP server (9 read + 5 write tools) |
 | `mcp add --agent claude\|cursor\|codex\|opencode --ns NS` | Write agent MCP config |

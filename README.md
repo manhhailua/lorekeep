@@ -225,10 +225,10 @@ For usage, see the [`docs/`](docs/README.md) index.
 ## Evaluation
 
 **Tier-1** (CI): extraction P/R/F1 vs a gold corpus, entity-resolution pairwise F1,
-graph-structure metrics, determinism. Run: `uvx lorekeep eval`.
+graph-structure metrics, determinism. *Dev-only command: `lorekeep eval`.*
 
 **Tier-2 LoCoMo** (per-release): long-term conversation → graph → retrieval QA.
-Run: `uvx lorekeep eval-locomo --data locomo10.json --compile`.
+*Dev-only command: `lorekeep eval-locomo`.*
 
 | Category | Recall | Description |
 |---|---|---|
