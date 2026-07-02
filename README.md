@@ -260,6 +260,29 @@ lorekeep config set observability.provider langfuse     # optional tracing
 Observability (optional): set `observability.provider` to `langfuse` or
 `langsmith` for LLM call tracing via litellm callbacks.
 
+## Backup & sync
+
+Back up `raw/` + `schema.json` to a private git repo. API keys, graph, cache,
+and wiki are never committed — they're regenerated per machine.
+
+```bash
+# First time — create a private repo on GitHub, then:
+lorekeep backup --init https://github.com/<you>/lorekeep-data.git
+
+# Routine — after editing raw/ or compiling:
+lorekeep backup
+
+# Restore on a new machine:
+lorekeep init                                        # bootstrap config
+rm -rf .lorekeep && git clone https://github.com/<you>/lorekeep-data.git .lorekeep
+lorekeep compile                                     # rebuild graph from raw/
+
+# Multi-device sync — if push is rejected (non-fast-forward):
+cd .lorekeep && git pull --rebase && cd - && lorekeep backup
+```
+
+Each machine sets its own API key — no secrets in the backup.
+
 ## Project layout
 
 ```
