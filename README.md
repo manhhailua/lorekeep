@@ -44,7 +44,8 @@ just single-user.
   `lorekeep mcp add` wires Claude Code / Cursor / Codex / opencode.
 - **Autonomous agent daemon** — `lorekeep agent watch` keeps the graph current:
   auto-compile on raw/ change, auto-resolve pending journals, delta import of
-  agent session memory. Runs in the background; MCP server lazy-reloads.
+  agent session memory. **Auto-backup**: syncs to remote git after compile (pull --rebase + push).
+  Runs in the background; MCP server lazy-reloads.
 - **Session-end hooks** — `lorekeep hook` auto-imports agent memory when a
   session ends (Claude / Cursor / Codex / opencode). Wired by `mcp add`.
 - **Obsidian wiki** — auto-generated after every compile/resolve: human-browsable

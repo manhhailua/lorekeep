@@ -52,6 +52,21 @@ lorekeep backup      # commit + push raw/ + schema.json
 
 If nothing changed, it prints `backup: up to date` and exits 0.
 
+## Auto-backup (daemon)
+
+If the daemon (`lorekeep agent watch`) is running and a backup remote is
+configured, backup syncs automatically:
+
+1. **At startup**: pull --rebase from remote (sync changes from other machines)
+2. **After every compile**: commit local changes → fetch + rebase → push
+
+No manual `lorekeep backup` needed — the daemon handles it. If no remote is
+configured (`lorekeep backup --init` not run), backup is silently skipped.
+
+Multi-device conflicts (two machines editing same file) are handled by
+git rebase — if a conflict occurs, the daemon skips silently and the user
+resolves manually with `lorekeep backup`.
+
 ## Restore / second device
 
 On a fresh machine, clone the backup remote **into** the data home location,

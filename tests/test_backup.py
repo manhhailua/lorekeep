@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from lorekeep.backup import BACKUP_GITIGNORE, BackupError, backup, init_backup
+from lorekeep.backup import BACKUP_GITIGNORE, BackupError, backup, init_backup, has_remote, sync_backup
 
 
 def _bare_remote(tmp_path: Path) -> str:
@@ -159,3 +159,87 @@ def test_init_backup_idempotent_on_diverged_remote(tmp_path: Path):
     init_backup(home, remote)
     # The remote-side file should be present locally after rebase
     assert (home / "raw" / "ns2" / "remote.md").exists()
+
+
+# ── has_remote + sync_backup tests ────────────────────────────────────────
+
+
+def test_has_remote_false_when_no_repo(tmp_path: Path):
+    home = tmp_path / "home"
+    home.mkdir()
+    assert has_remote(home) is False
+
+
+def test_has_remote_false_when_no_origin(tmp_path: Path):
+    home = tmp_path / "home"
+    home.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=home, check=True)
+    assert has_remote(home) is False
+
+
+def test_has_remote_true_after_init(tmp_path: Path):
+    home = tmp_path / "home"
+    remote = _bare_remote(tmp_path)
+    init_backup(home, remote)
+    assert has_remote(home) is True
+
+
+def test_sync_backup_no_repo_returns_false(tmp_path: Path):
+    home = tmp_path / "home"
+    home.mkdir()
+    assert sync_backup(home) is False
+
+
+def test_sync_backup_commits_and_pushes(tmp_path: Path):
+    home = tmp_path / "home"
+    remote = _bare_remote(tmp_path)
+    init_backup(home, remote)
+
+    (home / "raw" / "ns").mkdir(parents=True)
+    (home / "raw" / "ns" / "new.md").write_text("# new")
+    pushed = sync_backup(home)
+    assert pushed is True
+
+
+def test_sync_backup_nothing_to_push(tmp_path: Path):
+    home = tmp_path / "home"
+    remote = _bare_remote(tmp_path)
+    init_backup(home, remote)
+    pushed = sync_backup(home)
+    assert pushed is False
+
+
+def test_sync_backup_pulls_from_other_machine(tmp_path: Path):
+    """Sync should pull changes pushed by another device before pushing."""
+    home = tmp_path / "home"
+    remote = _bare_remote(tmp_path)
+    init_backup(home, remote)
+
+    # Simulate another machine pushing a new file
+    other = tmp_path / "other"
+    subprocess.run(["git", "clone", "-q", remote, str(other)], check=True)
+    (other / "raw" / "shared").mkdir(parents=True)
+    (other / "raw" / "shared" / "synced.md").write_text("# from other device")
+    _git_cmd(["add", "-A"], other)
+    _git_cmd(["commit", "-q", "-m", "other device"], other)
+    subprocess.run(["git", "push", "-q"], cwd=other, check=True)
+
+    # Now sync on the original device — should pull the file
+    (home / "raw" / "local").mkdir(parents=True)
+    (home / "raw" / "local" / "local.md").write_text("# local change")
+    sync_backup(home)
+
+    assert (home / "raw" / "shared" / "synced.md").exists()
+    assert (home / "raw" / "local" / "local.md").exists()
+
+
+def test_sync_backup_handles_network_error(tmp_path: Path):
+    home = tmp_path / "home"
+    remote = _bare_remote(tmp_path)
+    init_backup(home, remote)
+    # Break the remote URL
+    subprocess.run(["git", "remote", "set-url", "origin", "/nonexistent/path"],
+                   cwd=home, check=True)
+    # Should not raise — returns False silently
+    result = sync_backup(home)
+    assert result is False

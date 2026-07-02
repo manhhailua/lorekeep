@@ -122,11 +122,14 @@ Two modes, from fully automatic to agent-controlled:
 ```bash
 # Mode 1: Daemon (default) — fully autonomous, follows Karpathy LLM Wiki pattern
 uvx lorekeep agent watch
+# Startup: sync backup from remote (pull changes from other machines)
 # Watches raw/ → auto-compile (file count + mtime tracking)
+#   → after compile: auto-resolve + wiki regen + backup sync (push to remote)
 # Watches pending/ → auto-resolve
 # Watches Claude memory/ + Codex memories/ → delta quick-import (zero LLM)
 # Session re-discovery every cycle — detects new sessions after daemon start
 # Survives restart: lorekeep agent daemon install (systemd/launchd/startup)
+# Backup auto-syncs: pull --rebase (other machines) + push (local changes)
 # Use --no-watch-sessions to disable session watching
 
 # Mode 2: Agent-controlled (--no-watch on init) — no daemon

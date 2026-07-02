@@ -1476,6 +1476,15 @@ def watch(
             typer.echo("agent: resolving pending journals at startup...")
             _do_auto_resolve(p["out"], pending_dir, p.get("wiki"))
 
+    # Sync from remote at startup (pull changes from other machines)
+    try:
+        from lorekeep.backup import sync_backup, has_remote
+        if has_remote(p["home"]):
+            typer.echo("agent: syncing backup from remote...")
+            sync_backup(p["home"])
+    except Exception:
+        pass
+
     while True:
         try:
             # Re-check existence each cycle (raw/ or pending/ may be created after start)
@@ -1514,6 +1523,15 @@ def watch(
 
             if compiled and has_pending:
                 _do_auto_resolve(p["out"], pending_dir, p.get("wiki"))
+
+            # --- auto-backup + sync after compile ---------------------------
+            if compiled:
+                try:
+                    from lorekeep.backup import sync_backup
+                    if sync_backup(p["home"]):
+                        typer.echo("agent: backup synced")
+                except Exception:
+                    pass
 
             # --- pending/ watch → auto-resolve ------------------------------
             if has_pending:

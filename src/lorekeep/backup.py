@@ -85,6 +85,36 @@ def _reconcile_remote(home: Path) -> None:
         pass  # no remote ref yet, or clean tree — push will surface real errors
 
 
+def has_remote(home: Path) -> bool:
+    """Check if a backup remote (git repo + origin) is configured."""
+    if not (home / ".git").is_dir():
+        return False
+    try:
+        remotes = _git(["remote"], home)
+        return "origin" in remotes.split()
+    except BackupError:
+        return False
+
+
+def sync_backup(home: Path) -> bool:
+    """Sync backup: pull --rebase from remote, then commit + push.
+
+    Used by daemon after compile. Pulls changes from other machines first
+    (fetch + rebase), then pushes local changes.
+
+    Silently returns False if:
+    - No backup repo or remote configured
+    - Network error or conflict (user resolves manually with ``lorekeep backup``)
+    """
+    if not has_remote(home):
+        return False
+    try:
+        _reconcile_remote(home)
+        return backup(home)
+    except BackupError:
+        return False
+
+
 def init_backup(home: Path, remote: str) -> None:
     """Init a git repo in ``home``, write .gitignore, set origin, commit, push.
 
