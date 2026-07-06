@@ -63,13 +63,34 @@ def list_providers() -> list[tuple[str, int]]:
         _restore_stderr(old, devnull)
 
 
+def _normalize_model_name(name: str, provider: str) -> str:
+    """Normalize a litellm model name to ``{provider}/{model}`` format.
+
+    litellm's ``models_by_provider`` may contain both prefixed (``deepseek/deepseek-chat``)
+    and non-prefixed (``deepseek-chat``) variants of the same model.  Non-prefixed
+    names fail at runtime for providers that litellm cannot auto-detect by pattern
+    (e.g. deepseek, gemini).  Always storing the prefixed form produces a valid
+    litellm model string regardless of provider.
+    """
+    prefix = f"{provider}/"
+    if name.startswith(prefix):
+        return name
+    return f"{provider}/{name}"
+
+
 def list_models(provider: str) -> list[ModelInfo]:
-    """Return chat models for a provider, sorted by cost (cheapest first)."""
+    """Return chat models for a provider, sorted by cost (cheapest first).
+
+    All model names are normalized to ``{provider}/{model}`` format and
+    de-duplicated, so non-prefixed and prefixed variants of the same model
+    never both appear.
+    """
     import litellm
 
     old, devnull = _suppress_stderr()
     try:
         raw = litellm.models_by_provider.get(provider, set())
+        seen: set[str] = set()
         models: list[ModelInfo] = []
         for m in sorted(raw):
             try:
@@ -78,8 +99,12 @@ def list_models(provider: str) -> list[ModelInfo]:
                 continue
             if info.get("mode") != "chat":
                 continue
+            normalized = _normalize_model_name(m, provider)
+            if normalized in seen:
+                continue
+            seen.add(normalized)
             models.append(ModelInfo(
-                model=m,
+                model=normalized,
                 provider=provider,
                 mode=info.get("mode", "chat"),
                 input_cost=info.get("input_cost_per_token", 0) or 0,

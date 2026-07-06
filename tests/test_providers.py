@@ -7,6 +7,7 @@ import pytest
 
 from lorekeep.providers import (
     ModelInfo,
+    _normalize_model_name,
     format_cost,
     is_dynamic,
     search_providers,
@@ -131,8 +132,8 @@ class TestListModels:
 
         result = list_models("openai")
         assert len(result) == 2
-        assert result[0].model == "model-b"  # cheaper first
-        assert result[1].model == "model-a"
+        assert result[0].model == "openai/model-b"  # cheaper first
+        assert result[1].model == "openai/model-a"
         assert all(r.mode == "chat" for r in result)
 
     @patch("litellm.models_by_provider", {"openai": {"good", "bad"}})
@@ -150,10 +151,64 @@ class TestListModels:
 
         result = list_models("openai")
         assert len(result) == 1
-        assert result[0].model == "good"
+        assert result[0].model == "openai/good"
 
     @patch("litellm.models_by_provider", {})
     def test_empty_provider(self):
         from lorekeep.providers import list_models
         result = list_models("nonexistent")
         assert result == []
+
+
+class TestNormalizeModelName:
+    """Model names must always be valid litellm strings ({provider}/{model})."""
+
+    def test_adds_prefix_to_bare_name(self):
+        assert _normalize_model_name("deepseek-chat", "deepseek") == "deepseek/deepseek-chat"
+
+    def test_keeps_existing_prefix(self):
+        assert _normalize_model_name("deepseek/deepseek-chat", "deepseek") == "deepseek/deepseek-chat"
+
+    def test_openai_prefix(self):
+        assert _normalize_model_name("gpt-4o-mini", "openai") == "openai/gpt-4o-mini"
+
+    def test_idempotent(self):
+        normalized = _normalize_model_name("claude-3-haiku", "anthropic")
+        assert _normalize_model_name(normalized, "anthropic") == normalized
+
+
+class TestListModelsNormalization:
+    """list_models must de-duplicate prefixed/non-prefixed variants and always
+    return ``{provider}/{model}`` strings (regression: deepseek-v4-flash without
+    prefix caused 'LLM Provider NOT provided' at runtime)."""
+
+    @patch("litellm.models_by_provider", {"deepseek": {"deepseek-chat", "deepseek/deepseek-chat"}})
+    @patch("litellm.get_model_info")
+    def test_dedup_prefixed_and_non_prefixed(self, mock_info):
+        from lorekeep.providers import list_models
+
+        mock_info.return_value = {
+            "mode": "chat", "input_cost_per_token": 0, "output_cost_per_token": 0,
+            "max_input_tokens": None, "supports_function_calling": False,
+        }
+        result = list_models("deepseek")
+        # Both entries normalize to deepseek/deepseek-chat → only 1 returned
+        assert len(result) == 1
+        assert result[0].model == "deepseek/deepseek-chat"
+
+    @patch("litellm.models_by_provider", {"deepseek": {"deepseek-v4-flash", "deepseek/deepseek-v4-flash",
+                                                         "deepseek-chat"}})
+    @patch("litellm.get_model_info")
+    def test_all_models_prefixed(self, mock_info):
+        from lorekeep.providers import list_models
+
+        mock_info.return_value = {
+            "mode": "chat", "input_cost_per_token": 0, "output_cost_per_token": 0,
+            "max_input_tokens": None, "supports_function_calling": False,
+        }
+        result = list_models("deepseek")
+        ids = [m.model for m in result]
+        assert len(ids) == len(set(ids)), "duplicate model names"
+        assert all("/" in m for m in ids), f"non-prefixed model: {ids}"
+        assert "deepseek/deepseek-v4-flash" in ids
+        assert "deepseek/deepseek-chat" in ids

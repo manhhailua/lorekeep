@@ -107,6 +107,48 @@ def hook() -> None:
         typer.echo(f"lorekeep: imported {total} memory file(s)")
 
 
+def _report_compile_errors(manifest, *, exit_on_total_failure: bool = True) -> None:
+    """Surface compile errors from a :class:`~lorekeep.models.Manifest`.
+
+    ``compile_graph`` uses a skip-and-log strategy: per-chunk failures are
+    collected in ``manifest.errors`` rather than raised.  Without this helper
+    the user would see ``compiled: 0 nodes`` and an exit code of 0, with no
+    indication that every LLM extraction call failed (e.g. wrong model string,
+    missing API key, bad ``api_base``).
+
+    * **Partial failure** — some chunks failed but nodes were produced.
+      Prints a one-line summary to stderr so the user knows to check
+      ``manifest.json`` for details.
+    * **Total failure** — ``node_count == 0`` with ``chunk_count > 0``.
+      Prints every error to stderr and, when *exit_on_total_failure* is
+      ``True`` (the interactive ``compile`` command), exits with code 1.
+      The daemon passes ``False`` so it can keep running.
+    """
+    errs = manifest.errors or []
+    if not errs:
+        return
+    total_fail = manifest.node_count == 0 and manifest.chunk_count > 0
+    if total_fail:
+        typer.echo(
+            f"compile: ALL {manifest.chunk_count} chunk(s) failed — 0 nodes produced. "
+            "Check provider config (model, api_base, api_key).",
+            err=True,
+        )
+        for e in errs:
+            typer.echo(
+                f"  {e.path}:{e.line}: {e.message}",
+                err=True,
+            )
+        if exit_on_total_failure:
+            raise typer.Exit(code=1)
+    else:
+        typer.echo(
+            f"compile: {len(errs)} chunk(s) failed (partial — "
+            f"{manifest.node_count} nodes still produced). See manifest.json.",
+            err=True,
+        )
+
+
 @app.command()
 def compile() -> None:
     """Compile raw/ → facts.jsonl + merge pending + generate wiki (all-in-one)."""
@@ -121,6 +163,8 @@ def compile() -> None:
     )
     typer.echo(f"compiled: {manifest.node_count} nodes, {manifest.edge_count} edges, "
                f"run_id={manifest.run_id}, facts_hash={manifest.facts_hash}")
+
+    _report_compile_errors(manifest)
 
     pending_dir = p.get("pending")
     resolved = False
@@ -828,6 +872,7 @@ def _auto_import_and_compile(p: dict) -> None:
             provider=provider, cache_path=p["cache"],
             chunk_lines=config.compile.chunk_lines,
         )
+        _report_compile_errors(manifest, exit_on_total_failure=False)
         pending_dir = p.get("pending")
         resolved = False
         if pending_dir and pending_dir.exists():
@@ -1509,11 +1554,12 @@ def watch(
                     schema = load_schema(p["schema"])
                     config = load_config(p["config"])
                     provider = _make_provider(config)
-                    compile_graph(
+                    dm = compile_graph(
                         raw_root=raw_dir, out_dir=p["out"], schema=schema,
                         provider=provider, cache_path=p["cache"],
                         chunk_lines=config.compile.chunk_lines,
                     )
+                    _report_compile_errors(dm, exit_on_total_failure=False)
                     typer.echo("agent: compile done")
                     compiled = True
                 except Exception as exc:
