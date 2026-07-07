@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.3](https://github.com/manhhailua/lorekeep/compare/v0.11.2...v0.11.3) (2026-07-07)
+
+
+### Bug Fixes
+
+* normalize model names to {provider}/{model} and surface compile errors ([#114](https://github.com/manhhailua/lorekeep/issues/114)) ([a54f3d1](https://github.com/manhhailua/lorekeep/commit/a54f3d1accdc61f687549a0128b2d195242dd34c))
+
 ## [0.11.2](https://github.com/manhhailua/lorekeep/compare/v0.11.1...v0.11.2) (2026-07-02)
 
 
