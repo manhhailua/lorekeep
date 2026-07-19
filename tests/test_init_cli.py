@@ -59,7 +59,7 @@ def test_init_interactive(tmp_path: Path, monkeypatch):
     result = runner.invoke(app, ["init"], input="3\n1\n\n\nmyteam\nAlice\nBuilds backend infra\n")
     assert result.exit_code == 0, result.stdout
     cfg = yaml.safe_load((home / "config.yaml").read_text())
-    assert cfg["provider"]["model"] == "deepseek-chat"
+    assert cfg["provider"]["model"] == "deepseek/deepseek-chat"
     assert cfg["provider"]["api_key"] is None
     assert cfg["provider"]["api_key_env"] == "DEEPSEEK_API_KEY"
     assert cfg["ns"]["default"] == ["myteam"]
@@ -86,7 +86,7 @@ def test_init_interactive_stores_inline_key(tmp_path: Path, monkeypatch):
     result = runner.invoke(app, ["init"], input="1\n1\nsk-testKEY\nme\nBob\nlocal dev\n")
     assert result.exit_code == 0, result.stdout
     cfg = yaml.safe_load((home / "config.yaml").read_text())
-    assert cfg["provider"]["model"] == "gpt-4o-mini"
+    assert cfg["provider"]["model"] == "openai/gpt-4o-mini"
     assert cfg["provider"]["api_key"] == "sk-testKEY"
     assert cfg["provider"]["api_key_env"] is None
     assert cfg["ns"]["default"] == ["me"]
@@ -115,7 +115,7 @@ def test_init_interactive_ollama_no_key(tmp_path: Path, monkeypatch):
     result = runner.invoke(app, ["init"], input=inp)
     assert result.exit_code == 0, result.stdout
     cfg = yaml.safe_load((home / "config.yaml").read_text())
-    assert cfg["provider"]["model"] == "llama3.2"
+    assert cfg["provider"]["model"] == "ollama/llama3.2"
     assert cfg["provider"]["api_key"] is None
     assert cfg["ns"]["default"] == ["myproject"]
 
