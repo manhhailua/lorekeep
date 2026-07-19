@@ -15,7 +15,7 @@ from lorekeep.models import now_iso
 from lorekeep.pipeline import compile_graph
 from lorekeep.paths import resolve_paths
 from lorekeep.defaults import DEFAULT_CONFIG_YAML, DEFAULT_SCHEMA
-from lorekeep.providers import validate_model_prefix
+from lorekeep.providers import NATIVE_PROVIDERS, model_provider, validate_model_prefix
 from lorekeep.schema_io import load_schema
 
 log = logging.getLogger("lorekeep")
@@ -550,6 +550,18 @@ def doctor() -> None:
     except Exception as exc:
         problems.append(f"mcp configure/tool failed: {exc}")
         ns = []
+
+    # Hint: api_base is redundant for native providers — litellm already knows
+    # their endpoint. Surfaced as a non-fatal note (a user may intentionally
+    # point a native provider at a mirror/proxy).
+    if config.provider.api_base:
+        prefix = model_provider(config.provider.model)
+        if prefix in NATIVE_PROVIDERS:
+            notes.append(
+                f"provider: hint — api_base set for {prefix}/, but litellm "
+                "already knows this endpoint; usually unnecessary (only "
+                "vllm/lm_studio/proxies/non-default-ollama need api_base)."
+            )
 
     # Provider connectivity probe — catches the most common breakage (bad
     # model/api_base/api_key) that a graph/schema check alone misses.

@@ -152,3 +152,40 @@ class TestProviderPing:
     def test_litellm_provider_has_ping(self):
         from lorekeep.compile.providers import LiteLLMProvider
         assert callable(getattr(LiteLLMProvider, "ping", None))
+
+
+class TestDoctorApiBaseHint:
+    """api_base is redundant for native providers — doctor warns (non-fatal)."""
+
+    def test_warns_api_base_on_native_provider(self, tmp_path: Path, fixtures: Path, monkeypatch):
+        out = _seed_graph(tmp_path, fixtures)
+        cfg = tmp_path / "config.yaml"
+        cfg.write_text(
+            "provider:\n"
+            "  model: dashscope/qwen-plus\n"
+            "  api_base: https://dashscope-intl.aliyuncs.com/compatible-mode/v1\n"
+        )
+        monkeypatch.setenv("LOREKEEP_OUT", str(out))
+        monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
+        monkeypatch.setenv("LOREKEEP_CONFIG", str(cfg))
+        monkeypatch.setattr("lorekeep.cli._has_provider", lambda c: False)  # skip ping
+        result = runner.invoke(app, ["doctor"])
+        assert result.exit_code == 0, result.stdout
+        assert "api_base" in result.stdout.lower()
+        assert "dashscope" in result.stdout
+
+    def test_no_api_base_hint_for_dynamic_ollama(self, tmp_path: Path, fixtures: Path, monkeypatch):
+        out = _seed_graph(tmp_path, fixtures)
+        cfg = tmp_path / "config.yaml"
+        cfg.write_text(
+            "provider:\n"
+            "  model: ollama/llama3\n"
+            "  api_base: http://localhost:11434\n"
+        )
+        monkeypatch.setenv("LOREKEEP_OUT", str(out))
+        monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
+        monkeypatch.setenv("LOREKEEP_CONFIG", str(cfg))
+        monkeypatch.setattr("lorekeep.cli._has_provider", lambda c: False)
+        result = runner.invoke(app, ["doctor"])
+        assert result.exit_code == 0, result.stdout
+        assert "api_base" not in result.stdout.lower()
