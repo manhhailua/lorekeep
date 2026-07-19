@@ -56,11 +56,13 @@ def dim(msg: str) -> None:
 
 
 def warn(msg: str) -> None:
-    stderr_console.print(f"[yellow]![/yellow] {escape(msg)}")
+    # stdout (not stderr): lorekeep's status tests assert on result.stdout, and
+    # the pre-existing doctor/check/backup FAIL lines were plain stdout echos.
+    console.print(f"[yellow]![/yellow] {escape(msg)}")
 
 
 def error(msg: str) -> None:
-    stderr_console.print(f"[red]✗[/red] {escape(msg)}")
+    console.print(f"[red]✗[/red] {escape(msg)}")
 
 
 # ── progress / spinner ───────────────────────────────────────────────────────

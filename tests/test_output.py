@@ -51,9 +51,9 @@ class TestHelpersColor:
         # strip ANSI, then the literal text must survive (no markup mangling)
         assert "namespaces=['me', 'public']" in _plain(buf.getvalue())
 
-    def test_error_goes_to_stderr_console(self, monkeypatch):
+    def test_error_goes_to_stdout_console(self, monkeypatch):
         buf = StringIO()
-        monkeypatch.setattr(output, "stderr_console", _tty_console(buf))
+        monkeypatch.setattr(output, "console", _tty_console(buf))
         output.error("boom")
         text = buf.getvalue()
         assert "\x1b[" in text
@@ -63,7 +63,6 @@ class TestHelpersColor:
     def test_info_warn_dim_have_glyphs(self, monkeypatch):
         buf = StringIO()
         monkeypatch.setattr(output, "console", _tty_console(buf))
-        monkeypatch.setattr(output, "stderr_console", _tty_console(buf))
         output.info("i")
         output.step("s")
         output.dim("d")

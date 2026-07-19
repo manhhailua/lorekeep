@@ -143,18 +143,15 @@ def _report_compile_errors(manifest, *, exit_on_total_failure: bool = True) -> N
         return
     for e in errs:
         log.error("compile error %s:%s: %s", e.path, e.line, e.message)
+    from lorekeep.output import dim, error, warn
     total_fail = manifest.node_count == 0 and manifest.chunk_count > 0
     if total_fail:
-        typer.echo(
+        error(
             f"compile: ALL {manifest.chunk_count} chunk(s) failed — 0 nodes produced. "
-            "Check provider config (model, api_base, api_key).",
-            err=True,
+            "Check provider config (model, api_base, api_key)."
         )
         for e in errs:
-            typer.echo(
-                f"  {e.path}:{e.line}: {e.message}",
-                err=True,
-            )
+            dim(f"  {e.path}:{e.line}: {e.message}")
         if exit_on_total_failure:
             raise typer.Exit(code=1)
     else:
@@ -166,23 +163,20 @@ def _report_compile_errors(manifest, *, exit_on_total_failure: bool = True) -> N
         distinct = set(messages)
         systemic = len(errs) >= 3 and (len(distinct) == 1 or max(messages.count(m) for m in distinct) >= 0.8 * len(errs))
         if systemic:
-            typer.echo(
+            error(
                 f"compile: {len(errs)} of {manifest.chunk_count} chunk(s) failed "
-                f"with the same error ({manifest.node_count} nodes still produced).",
-                err=True,
+                f"with the same error ({manifest.node_count} nodes still produced)."
             )
             for e in errs:
-                typer.echo(f"  {e.path}:{e.line}: {e.message}", err=True)
-            typer.echo(
+                dim(f"  {e.path}:{e.line}: {e.message}")
+            dim(
                 "  hint: identical errors across chunks usually mean a provider "
-                "config issue (model/api_base/api_key). Run 'lorekeep doctor'.",
-                err=True,
+                "config issue (model/api_base/api_key). Run 'lorekeep doctor'."
             )
         else:
-            typer.echo(
+            warn(
                 f"compile: {len(errs)} chunk(s) failed (partial — "
-                f"{manifest.node_count} nodes still produced). See manifest.json.",
-                err=True,
+                f"{manifest.node_count} nodes still produced). See manifest.json."
             )
 
 
@@ -330,9 +324,11 @@ def check() -> None:
     from lorekeep.eval.construction import structure_report
     struct = structure_report(p["out"])
     if struct["dangling_edge_rate"] > 0:
-        typer.echo(f"check: FAIL — {struct['dangling_edge_rate']} dangling edges")
+        from lorekeep.output import error
+        error(f"check: FAIL — {struct['dangling_edge_rate']} dangling edges")
         raise typer.Exit(code=1)
-    typer.echo(f"check: ok — {struct['node_count']} nodes, {struct['edge_count']} edges, 0 dangling")
+    from lorekeep.output import ok
+    ok(f"check: ok — {struct['node_count']} nodes, {struct['edge_count']} edges, 0 dangling")
 
 
 @app.command()
@@ -548,17 +544,18 @@ def doctor() -> None:
     p = resolve_paths()
     problems = []
     notes = []
+    from lorekeep.output import error as _err, info as _info, ok as _ok
 
     facts_path = p["out"] / "facts.jsonl"
     if not facts_path.exists():
-        typer.echo(f"FAIL: facts.jsonl not found at {facts_path}")
+        _err(f"FAIL: facts.jsonl not found at {facts_path}")
         raise typer.Exit(code=1)
 
     try:
         from lorekeep.store.graph import GraphStore
         store = GraphStore.from_jsonl(facts_path)
     except Exception as exc:
-        typer.echo(f"FAIL: cannot load graph: {exc}")
+        _err(f"FAIL: cannot load graph: {exc}")
         raise typer.Exit(code=1)
 
     if not p["schema"].exists():
@@ -573,7 +570,7 @@ def doctor() -> None:
     try:
         config = load_config(p["config"])
     except ValueError as exc:
-        typer.echo(f"FAIL: provider config: {exc}")
+        _err(f"FAIL: provider config: {exc}")
         raise typer.Exit(code=1)
 
     raw_ns = os.environ.get("LOREKEEP_NS")
@@ -621,15 +618,15 @@ def doctor() -> None:
                 problems.append(f"provider: FAILED — {exc}")
 
     if problems:
-        typer.echo("FAIL: " + "; ".join(problems))
+        _err("FAIL: " + "; ".join(problems))
         raise typer.Exit(code=1)
 
-    typer.echo(
+    _ok(
         f"all checks passed: {len(store.node_ids())} nodes, "
         f"{len(store.all_edges())} edges, namespaces={ns}"
     )
     for note in notes:
-        typer.echo(note)
+        _info(note)
 
 
 def _is_interactive() -> bool:
@@ -679,8 +676,9 @@ def init(
     p["out"].mkdir(parents=True, exist_ok=True)
     p["pending"].mkdir(parents=True, exist_ok=True)
 
-    typer.echo(f"home ready: config={p['config']}")
-    typer.echo(f"  schema={p['schema']}  raw={p['raw']}  graph={p['out']}")
+    from lorekeep.output import info, ok
+    ok(f"home ready: config={p['config']}")
+    info(f"  schema={p['schema']}  raw={p['raw']}  graph={p['out']}")
     if created:
         typer.echo(f"  wrote defaults: {created}")
     else:
@@ -1049,20 +1047,21 @@ def backup(
 ) -> None:
     """Commit + push the data home to your private backup repo."""
     from lorekeep.backup import BackupError, backup as backup_home, init_backup
+    from lorekeep.output import dim, error, info, ok
 
     home = resolve_paths()["home"]
     try:
         if init_remote:
             init_backup(home, init_remote)
-            typer.echo(f"backup: repo ready at {home} -> {init_remote}")
+            info(f"backup: repo ready at {home} -> {init_remote}")
         else:
             pushed = backup_home(home)
             if pushed:
-                typer.echo(f"backup: pushed to remote from {home}")
+                ok(f"backup: pushed to remote from {home}")
             else:
-                typer.echo(f"backup: up to date (no changes at {home})")
+                dim(f"backup: up to date (no changes at {home})")
     except BackupError as exc:
-        typer.echo(f"backup failed: {exc}")
+        error(f"backup failed: {exc}")
         raise typer.Exit(code=1)
 
 
@@ -1102,6 +1101,7 @@ def import_cmd(
                 --quick copies memories/*.md only; default (deep) summarizes.
       opencode  opencode sessions (SQLite DB). Deep-only — no memory dir.
     """
+    from lorekeep.output import ok
     if from_source not in ("claude", "cursor", "codex", "opencode"):
         typer.echo(f"unknown source: {from_source} (claude | cursor | codex | opencode)")
         raise typer.Exit(code=1)
@@ -1135,8 +1135,8 @@ def import_cmd(
         if dry_run:
             typer.echo(f"dry-run: would import {mem_count} memories, {ses_count} session files")
         else:
-            typer.echo(f"imported: {mem_count} memories -> raw/{memory_ns}/, "
-                       f"{ses_count} session files -> raw/{session_ns or 'codex-session'}/")
+            ok(f"imported: {mem_count} memories -> raw/{memory_ns}/, "
+               f"{ses_count} session files -> raw/{session_ns or 'codex-session'}/")
         return
 
     # --- opencode: SQLite DB, deep-only ------------------------------------
@@ -1165,7 +1165,7 @@ def import_cmd(
         if dry_run:
             typer.echo(f"dry-run: would import {ses_count} opencode session files")
         else:
-            typer.echo(f"imported: {ses_count} session files -> raw/{ns}/")
+            ok(f"imported: {ses_count} session files -> raw/{ns}/")
             typer.echo("next: lorekeep compile")
         return
 
@@ -1199,7 +1199,7 @@ def import_cmd(
         if dry_run:
             typer.echo(f"dry-run: would import {ses_count} cursor session files")
         else:
-            typer.echo(f"imported: {ses_count} session files -> raw/{ns}/")
+            ok(f"imported: {ses_count} session files -> raw/{ns}/")
             typer.echo("next: lorekeep compile")
         return
 
@@ -1236,8 +1236,8 @@ def import_cmd(
         typer.echo(f"dry-run: would import {mem_count} memories, "
                    f"{ses_count} session files")
     else:
-        typer.echo(f"imported: {mem_count} memories -> raw/{memory_ns}/, "
-                   f"{ses_count} session files -> raw/{session_ns}/")
+        ok(f"imported: {mem_count} memories -> raw/{memory_ns}/, "
+           f"{ses_count} session files -> raw/{session_ns}/")
         if not quick:
             typer.echo("next: lorekeep compile")
 
