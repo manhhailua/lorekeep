@@ -11,6 +11,8 @@ from lorekeep.providers import (
     format_cost,
     is_dynamic,
     search_providers,
+    suggest_model_prefix,
+    validate_model_prefix,
     DYNAMIC_PROVIDERS,
 )
 
@@ -212,3 +214,64 @@ class TestListModelsNormalization:
         assert all("/" in m for m in ids), f"non-prefixed model: {ids}"
         assert "deepseek/deepseek-v4-flash" in ids
         assert "deepseek/deepseek-chat" in ids
+
+
+class TestSuggestModelPrefix:
+    """``suggest_model_prefix`` returns the canonical prefixed form for known
+    unambiguous bare names, else None (don't guess)."""
+
+    def test_deepseek_chat(self):
+        assert suggest_model_prefix("deepseek-chat") == "deepseek/deepseek-chat"
+
+    def test_deepseek_reasoner(self):
+        assert suggest_model_prefix("deepseek-reasoner") == "deepseek/deepseek-reasoner"
+
+    def test_gpt_4o_mini(self):
+        assert suggest_model_prefix("gpt-4o-mini") == "openai/gpt-4o-mini"
+
+    def test_claude_sonnet_4(self):
+        assert suggest_model_prefix("claude-sonnet-4-20250514") == "anthropic/claude-sonnet-4-20250514"
+
+    def test_already_prefixed_returns_none(self):
+        assert suggest_model_prefix("openai/gpt-4o-mini") is None
+
+    def test_unknown_returns_none(self):
+        assert suggest_model_prefix("some-custom-model") is None
+
+    def test_qwen_ambiguous_returns_none(self):
+        # qwen-* is ambiguous (DashScope openai/ + api_base vs native dashscope/)
+        assert suggest_model_prefix("qwen-plus") is None
+
+
+class TestValidateModelPrefix:
+    """``validate_model_prefix`` enforces ``{provider}/{model}`` with a suggestion."""
+
+    def test_prefixed_passes(self):
+        validate_model_prefix("deepseek/deepseek-chat")  # no raise
+        validate_model_prefix("openai/gpt-4o-mini")
+        validate_model_prefix("anthropic/claude-sonnet-4-20250514")
+
+    def test_bare_deepseek_raises_with_suggestion(self):
+        with pytest.raises(ValueError) as ei:
+            validate_model_prefix("deepseek-chat")
+        assert "deepseek/deepseek-chat" in str(ei.value)
+
+    def test_bare_gpt_suggests_openai(self):
+        with pytest.raises(ValueError) as ei:
+            validate_model_prefix("gpt-4o-mini")
+        assert "openai/gpt-4o-mini" in str(ei.value)
+
+    def test_unknown_bare_raises_with_rule(self):
+        with pytest.raises(ValueError) as ei:
+            validate_model_prefix("totally-unknown-model")
+        msg = str(ei.value)
+        assert "totally-unknown-model" in msg
+        assert "{provider}/{model}" in msg  # rule explained with template
+
+    def test_qwen_bare_raises_without_guessing_prefix(self):
+        # ambiguous: must NOT silently suggest a wrong prefix
+        with pytest.raises(ValueError) as ei:
+            validate_model_prefix("qwen-plus")
+        msg = str(ei.value)
+        assert "dashscope/qwen-plus" not in msg
+        assert "openai/qwen-plus" not in msg

@@ -71,11 +71,70 @@ def _normalize_model_name(name: str, provider: str) -> str:
     names fail at runtime for providers that litellm cannot auto-detect by pattern
     (e.g. deepseek, gemini).  Always storing the prefixed form produces a valid
     litellm model string regardless of provider.
+
+    For runtime validation of a user-supplied model string (no known provider),
+    see :func:`validate_model_prefix`.
     """
     prefix = f"{provider}/"
     if name.startswith(prefix):
         return name
     return f"{provider}/{name}"
+
+
+# Bare model names mapped to their canonical ``{provider}/{model}`` form, used
+# only to *suggest* a fix when a user writes an unambiguous bare name. Kept
+# conservative: ``qwen-*`` is intentionally absent (DashScope uses ``openai/`` +
+# ``api_base`` while native litellm uses ``dashscope/`` — ambiguous, so we emit
+# the rule instead of guessing).
+_BARE_ALIASES: dict[str, str] = {
+    "deepseek-chat": "deepseek/deepseek-chat",
+    "deepseek-reasoner": "deepseek/deepseek-reasoner",
+    "gpt-4o-mini": "openai/gpt-4o-mini",
+    "gpt-4o": "openai/gpt-4o",
+    "gpt-4-turbo": "openai/gpt-4-turbo",
+    "gpt-3.5-turbo": "openai/gpt-3.5-turbo",
+    "claude-sonnet-4-20250514": "anthropic/claude-sonnet-4-20250514",
+    "claude-3-5-sonnet-latest": "anthropic/claude-3-5-sonnet-latest",
+    "claude-3-5-sonnet-20241022": "anthropic/claude-3-5-sonnet-20241022",
+    "claude-3-haiku-20240307": "anthropic/claude-3-haiku-20240307",
+    "claude-3-opus-20240229": "anthropic/claude-3-opus-20240229",
+}
+
+
+def suggest_model_prefix(model: str) -> str | None:
+    """Return the canonical ``{provider}/{model}`` form for a known bare name.
+
+    Returns ``None`` for already-prefixed or unknown names so callers never
+    silently rewrite the user's config — they surface this as a *suggestion*.
+    """
+    if "/" in model:
+        return None
+    return _BARE_ALIASES.get(model)
+
+
+def validate_model_prefix(model: str) -> None:
+    """Raise ``ValueError`` unless *model* is a ``{provider}/{model}`` litellm string.
+
+    litellm routes by the prefix (``openai/``, ``deepseek/``, ``anthropic/`` …);
+    a bare name like ``deepseek-chat`` fails deep inside litellm with the opaque
+    ``LLM Provider NOT provided`` error. We fail fast here with an actionable
+    message, including a suggestion when the bare name is a known alias.
+    """
+    if "/" in model:
+        return
+    suggestion = suggest_model_prefix(model)
+    if suggestion:
+        raise ValueError(
+            f"provider model must be '{{provider}}/{{model}}' (got {model!r}). "
+            f"litellm routes by the prefix. Did you mean {suggestion!r}?"
+        )
+    raise ValueError(
+        f"provider model must be '{{provider}}/{{model}}' (got {model!r}). "
+        "litellm routes by the prefix — e.g. 'openai/gpt-4o-mini', "
+        "'anthropic/claude-sonnet-4-20250514', 'deepseek/deepseek-chat', "
+        "'ollama/llama3'."
+    )
+
 
 
 def list_models(provider: str) -> list[ModelInfo]:
