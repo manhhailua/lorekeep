@@ -5,7 +5,14 @@
 
 ### Features
 
-* Rich progress bars + colored status output for the CLI ([#125](https://github.com/manhhailua/lorekeep/issues/125)) ([c0ae697](https://github.com/manhhailua/lorekeep/commit/c0ae697a1aa59d56cc0dee1e8fb28cd984f393b2))
+* **cli:** colorize status/result lines (compile errors, doctor, check, backup, import, init)
+* **cli:** `wiki --open` launches Obsidian on the generated vault
+* **cli:** progress bars for slow commands + `--verbose`/`--quiet` flags ([#125](https://github.com/manhailua/lorekeep/issues/125)) ([c0ae697](https://github.com/manhailua/lorekeep/commit/c0ae697a1aa59d56cc0dee1e8fb28cd984f393b2))
+* **output:** Rich Console, colored status helpers, progress + logging
+* **pipeline:** `on_progress` callback on `compile_graph` + `ingest_source`
+* **wiki:** unified flat layout + relationship frontmatter (Obsidian + Tolaria dual support)
+
+> PR #125 bundled 8 commits but was squash-merged into one `feat`, so the auto-generated entry collapsed them. This section expands the full list; see the [v0.12.0 release notes](https://github.com/manhailua/lorekeep/releases/tag/v0.12.0).
 
 ## [0.11.5](https://github.com/manhhailua/lorekeep/compare/v0.11.4...v0.11.5) (2026-07-19)
 
