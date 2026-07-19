@@ -19,3 +19,8 @@ def test_default_config_yaml_loads_into_config():
     assert c.provider.model.startswith("openai/")
     assert c.install_source == "pypi"
     assert c.ns.default == ["public"]
+
+
+def test_default_config_yaml_has_no_backend():
+    """backend is a removed dead field — must not appear in the template."""
+    assert "backend" not in DEFAULT_CONFIG_YAML

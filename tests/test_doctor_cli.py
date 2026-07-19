@@ -99,3 +99,56 @@ def test_doctor_reports_bare_model_as_problem(tmp_path: Path, fixtures: Path, mo
     assert result.exit_code == 1
     assert "provider config" in result.stdout.lower()
     assert "deepseek/deepseek-chat" in result.stdout
+
+
+def test_doctor_no_ping_env_escape_hatch(tmp_path: Path, fixtures: Path, monkeypatch):
+    """LOREKEEP_DOCTOR_NO_PING=1 skips the ping even when a key is present."""
+    out = _seed_graph(tmp_path, fixtures)
+    monkeypatch.setenv("LOREKEEP_OUT", str(out))
+    monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
+    monkeypatch.setenv("LOREKEEP_DOCTOR_NO_PING", "1")
+    monkeypatch.setattr("lorekeep.cli._has_provider", lambda c: True)
+    # If the ping ran, this would explode (network). It must NOT be called.
+    def _boom(c):
+        raise AssertionError("provider built despite LOREKEEP_DOCTOR_NO_PING=1")
+    monkeypatch.setattr("lorekeep.cli._make_provider", _boom)
+    result = runner.invoke(app, ["doctor"])
+    assert result.exit_code == 0, result.stdout
+    assert "ping skipped" in result.stdout.lower()
+
+
+def test_doctor_reports_endpoint_unreachable(tmp_path: Path, fixtures: Path, monkeypatch):
+    out = _seed_graph(tmp_path, fixtures)
+    monkeypatch.setenv("LOREKEEP_OUT", str(out))
+    monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
+
+    class _Unreachable:
+        def ping(self):
+            raise Exception("ConnectionError: Connection refused")
+
+    monkeypatch.setattr("lorekeep.cli._has_provider", lambda c: True)
+    monkeypatch.setattr("lorekeep.cli._make_provider", lambda c: _Unreachable())
+    result = runner.invoke(app, ["doctor"])
+    assert result.exit_code == 1
+    assert "endpoint unreachable" in result.stdout.lower()
+
+
+class TestProviderPing:
+    """ping() contract: FakeProvider returns OK without consuming the response
+    queue (so compile tests' canned-response counts stay exact)."""
+
+    def test_fake_ping_returns_ok(self):
+        f = FakeProvider(["canned"])
+        assert f.ping() == "OK"
+
+    def test_fake_ping_does_not_consume_queue(self):
+        f = FakeProvider(["canned"])
+        assert f.ping() == "OK"
+        assert f.extract_json("s", "u") == "canned"  # still there
+
+    def test_fake_ping_works_with_empty_queue(self):
+        assert FakeProvider([]).ping() == "OK"
+
+    def test_litellm_provider_has_ping(self):
+        from lorekeep.compile.providers import LiteLLMProvider
+        assert callable(getattr(LiteLLMProvider, "ping", None))

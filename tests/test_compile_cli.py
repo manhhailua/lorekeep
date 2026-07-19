@@ -50,6 +50,26 @@ def test_compile_total_failure_exits_nonzero(monkeypatch, tmp_path: Path, fixtur
     assert "canned response left" in result.output  # the actual error message
 
 
+def test_compile_total_failure_logs_errors(monkeypatch, tmp_path: Path, fixtures: Path, caplog):
+    """Every compile error must reach the 'lorekeep' logger so daemon agent.log
+    surfaces it (regression: daemon path was silent)."""
+    import logging as _logging
+    monkeypatch.setenv("LOREKEEP_RAW", str(tmp_path / "raw"))
+    monkeypatch.setenv("LOREKEEP_OUT", str(tmp_path / "graph"))
+    monkeypatch.setenv("LOREKEEP_CACHE", str(tmp_path / "cache.json"))
+    monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
+    raw = tmp_path / "raw/test/doc.md"
+    raw.parent.mkdir(parents=True)
+    raw.write_text("# Doc\ncontent\n")
+    monkeypatch.setattr("lorekeep.cli._make_provider", lambda c: FakeProvider(responses=[]))
+    monkeypatch.setattr("lorekeep.cli._has_provider", lambda c: True)
+
+    with caplog.at_level(_logging.ERROR, logger="lorekeep"):
+        result = runner.invoke(app, ["compile"])
+    assert result.exit_code == 1
+    assert any("compile error" in r.message for r in caplog.records)
+
+
 def test_compile_partial_failure_exits_zero(monkeypatch, tmp_path: Path, fixtures: Path, fake_extraction):
     """When some chunks succeed but others fail, compile warns but exits 0
     (partial compile is valid)."""
