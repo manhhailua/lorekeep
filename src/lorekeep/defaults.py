@@ -30,7 +30,6 @@ DEFAULT_SCHEMA = {
 
 DEFAULT_CONFIG_YAML = """\
 provider:
-  backend: openai
   model: openai/gpt-4o-mini
   api_base: null
   api_key_env: OPENAI_API_KEY
@@ -42,44 +41,6 @@ ns:
   default: [public]
 install_source: pypi
 """
-
-PROVIDER_PRESETS: dict[str, dict] = {
-    "1": {
-        "label": "OpenAI (gpt-4o-mini)",
-        "backend": "openai",
-        "model": "openai/gpt-4o-mini",
-        "api_base": None,
-        "api_key_env": "OPENAI_API_KEY",
-    },
-    "2": {
-        "label": "Anthropic (claude-sonnet-4-20250514)",
-        "backend": "anthropic",
-        "model": "anthropic/claude-sonnet-4-20250514",
-        "api_base": None,
-        "api_key_env": "ANTHROPIC_API_KEY",
-    },
-    "3": {
-        "label": "DashScope/Qwen (qwen-plus)",
-        "backend": "openai",
-        "model": "openai/qwen-plus",
-        "api_base": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-        "api_key_env": "DASHSCOPE_API_KEY",
-    },
-    "4": {
-        "label": "Ollama (local, no API key needed)",
-        "backend": "openai",
-        "model": "ollama/llama3.2",
-        "api_base": "http://localhost:11434",
-        "api_key_env": None,
-    },
-    "5": {
-        "label": "Skip — configure provider later (edit config.yaml)",
-        "backend": "openai",
-        "model": "openai/gpt-4o-mini",
-        "api_base": None,
-        "api_key_env": None,
-    },
-}
 
 SAMPLE_DOC = """\
 # Lorekeep sample

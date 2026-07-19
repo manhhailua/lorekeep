@@ -13,7 +13,7 @@ from lorekeep.config import Config, load_config
 from lorekeep.models import now_iso
 from lorekeep.pipeline import compile_graph
 from lorekeep.paths import resolve_paths
-from lorekeep.defaults import DEFAULT_CONFIG_YAML, DEFAULT_SCHEMA, PROVIDER_PRESETS
+from lorekeep.defaults import DEFAULT_CONFIG_YAML, DEFAULT_SCHEMA
 from lorekeep.schema_io import load_schema
 
 app = typer.Typer(help="Lorekeep — compile team docs into a temporal knowledge graph.")
