@@ -27,6 +27,6 @@ How to use it.
 - [Importing agent sessions](guides/import.md) — Claude Code + Cursor + Codex + opencode → `raw/`.
 - [Compiling the knowledge graph](guides/compile.md) — `raw/*.md` → `facts.jsonl` + resolve pending.
 - [Serving the graph to coding agents](guides/serve.md) — wire Claude Code / Cursor / Codex / opencode over MCP, write tools, daemon.
-- [Browsing the wiki](guides/wiki.md) — human-readable Obsidian-compatible markdown view of the graph.
+- [Browsing the wiki](guides/wiki.md) — browse the graph in Obsidian: `wiki --open`, graph view, tags, Dataview queries.
 - [Data home & path resolution](guides/data-home.md) — env / `LOREKEEP_HOME` / dev mode / XDG.
 - [Backing up the data home](guides/backup.md) — `lorekeep backup` to a private git repo: setup, restore, multi-device conflicts.

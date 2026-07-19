@@ -1,179 +1,171 @@
-# Browsing the wiki (human view)
+# Browsing the wiki in Obsidian
 
-The compiled graph (`facts.jsonl`) is machine-readable — consumed by agents over MCP. The **wiki** is its human-readable projection: Obsidian-compatible markdown pages with wikilinks, YAML frontmatter, and graph view.
+The compiled graph (`facts.jsonl`) is machine-readable — consumed by agents over
+MCP. The **wiki** is its human-readable projection: Obsidian-compatible markdown
+pages with `[[wikilinks]]`, YAML frontmatter, tags, and a graph view. This guide
+is the fastest way to browse it.
 
-## Quick start
+## 1. Quick start
 
-```bash
-uvx lorekeep compile      # auto-generates wiki/ after compile
-# OR
-uvx lorekeep wiki         # regenerate wiki/ from existing facts.jsonl
-```
-
-Open the `wiki/` directory in Obsidian:
+One command generates the wiki and opens it in Obsidian:
 
 ```bash
-# In your data home (default XDG):
-open ~/.local/share/lorekeep/wiki
-
-# Or dev mode (repo co-located):
-open .lorekeep/wiki
+uvx lorekeep wiki --open
 ```
 
-In Obsidian: **File → Open vault** → select the `wiki/` directory.
+(`compile` also auto-generates `wiki/` at the end of every run, so after
+editing raw docs you can jump straight to `wiki --open`.)
 
-## Lifecycle
+**Prerequisites:** [Obsidian](https://obsidian.md) installed. If it isn't (or
+the launcher can't find it), `--open` prints the folder path so you can open it
+manually — the wiki is already generated.
 
-The wiki is a **derived artifact** — fully regenerable from `facts.jsonl`, never the reverse:
+## 2. Open the vault manually
 
-```
-raw/*.md → compile → facts.jsonl → wiki/*.md
-                          ↑                ↓
-                     agent queries     human browses
-                     (MCP tools)      (Obsidian)
-```
+In Obsidian: **Open vault → Open folder as vault** → select the `wiki/`
+directory.
 
-| Consumer | Reads | Format |
-|---|---|---|
-| Agent (MCP) | `facts.jsonl` | JSONL — structured queries, temporal, ns-scoped |
-| Human (Obsidian) | `wiki/` | Markdown — browsable, searchable, graph view |
+| Install | Vault path |
+|---|---|
+| Source checkout (dev) | `.lorekeep/wiki/` |
+| Installed (Linux XDG) | `~/.local/share/lorekeep/wiki/` |
+| Installed (macOS) | `~/Library/Application Support/lorekeep/wiki/` |
+| Installed (Windows) | `%LOCALAPPDATA%\lorekeep\wiki\` |
 
-### When wiki regenerates
+> ⚠️ **Open `wiki/`, not its parent.** The parent `.lorekeep/` holds
+> `config.yaml` (which may contain your API key). Scoping the vault to `wiki/`
+> keeps that file — and any community-plugin access to it — out of Obsidian.
 
-Wiki regenerates on **every `facts.jsonl` mutation**:
-
-| Trigger | Who | Wiki regen? |
-|---|---|---|
-| `compile` (raw → facts.jsonl) | Curator | Yes — single regen at end |
-| `compile` + pending resolve | Curator | Yes — `_do_auto_resolve` regens if merge happened; otherwise compile's own regen covers it. **Never double.** |
-| `resolve` (manual, merge happened) | Curator | Yes — gated on `merge_count > 0` or `flagged_count > 0` |
-| `resolve` (quarantine-only, no merge) | Curator | No — facts.jsonl unchanged |
-| Daemon auto-resolve (merge) | Daemon | Yes — `_do_auto_resolve` regens on actual merge |
-| `lorekeep wiki` (manual) | Human | Yes — force regen |
-
-### Atomic swap
-
-Wiki pages build into a temp sibling directory (`.wiki-build.tmp`), then `os.rename` swaps it into place. The wiki directory is **never partially populated** — Obsidian always sees either the old or the new version, never a mix. This is safe even with the vault open during regeneration.
-
-## Output structure
+## 3. What's in the vault
 
 ```
 wiki/
-├── index.md                     # catalog of all entities, grouped by type
-├── log.md                       # append-only generation log
-├── overview.md                  # graph stats dashboard
-└── entities/
-    └── <type>/
-        └── <slug>.md            # one page per node
+├── index.md              # catalog of every entity, grouped by type
+├── overview.md           # graph stats dashboard (counts, temporal range, ns)
+├── log.md                # append-only generation log
+└── entities/<type>/<slug>.md   # one page per node
 ```
 
-### Entity pages
+Each entity page has YAML frontmatter that Obsidian (and Dataview) can query:
 
-Each node becomes a markdown page with:
-
-- **YAML frontmatter** — `id`, `type`, `ns`, `valid_from`, `valid_to`, `sources`, `tags` (Obsidian Dataview compatible). All scalars are quoted so IDs containing colons (`svc:payments-api`) parse correctly.
-
-Example entity page (`entities/service/svc-payments-api.md`):
-
-```markdown
+```yaml
 ---
 id: "svc:payments-api"
 type: "service"
 ns: ["backend"]
 valid_from: "2024-01-15"
-valid_to: ""
+valid_to: ""                 # empty ⇒ currently valid
 sources:
   - "raw/backend/payments.md:3"
 tags: ["service", "backend", "entity"]
 ---
-
-# payments-api
-
-> ID: `svc:payments-api`
-
-## Properties
-
-| Key | Value |
-|---|---|
-| name | payments-api |
-| lang | go |
-
-## Relationships
-
-### depends_on →
-
-- [[svc-auth]] (2024-01-15 → 2025-03-01)
-
-## Timeline
-
-- **2024-01-15**: Valid from
 ```
 
-### Properties table
+The body shows a Properties table, explicit **Relationships** (`depends_on →`,
+`← decided_by`, with validity windows as `from → to`), and a Timeline.
 
-Pipe characters in values are escaped (`\|`), newlines collapsed to spaces, and non-string values (integers, booleans, lists) serialized via `json.dumps` — preventing table corruption.
+## 4. Graph view
 
-### Slug naming
+Every relationship is a `[[wikilink]]`, so Obsidian's **graph view** (left
+ribbon, the connected-dots icon) renders the entity-relationship graph
+directly. Tips:
 
-Node IDs are sanitized to filename-safe slugs for wikilinks (`:` → `-`, `/` → `-`). If two distinct node IDs collide to the same slug, `generate_wiki` raises `ValueError` rather than silently overwriting.
+- **Start focused** — open a single entity, then run *Command → Open local
+  graph*. The full graph of a large vault is a hairball.
+- **Filter** — in graph settings, set *Files to exclude* or filter by
+  `path:entities/` to drop `index`/`overview`/`log`.
+- **Color groups** — add color groups by `path:entities/service/`,
+  `path:entities/team/`, etc., or by tag (`#backend`, `#frontend`) to color by
+  namespace.
+- **Backlinks** — the panel at the bottom of each page is Obsidian's
+  auto-generated inbound-reference list (incoming edges); the Relationships
+  section in the body is the explicit version.
 
-### index.md
+## 5. Tags
 
-Catalog of all entities, grouped by node type (`## Services`, `## Teams`, `## Decisions`). Each entry is a `[[wikilink]]` with a one-line summary.
+Every entity page is tagged `[<type>, <ns>..., entity]` (e.g.
+`["service", "backend", "entity"]`). `index`/`overview` carry
+`[index|overview, lorekeep-wiki]`.
 
-### overview.md
+- **Tag pane** (right sidebar) — click a tag to filter the file list.
+- **Graph coloring** — color groups can key off tags (`#service`, `#backend`).
+- **Search** — `tag:service lang:go` finds Go services via Obsidian's query
+  syntax.
 
-Graph-level dashboard: node/edge counts by type, temporal range, namespace breakdown, and compile metadata (run ID, facts hash).
+## 6. Dataview queries (community plugin)
 
-### log.md
+Install the **Dataview** community plugin (Settings → Community plugins →
+Browse → "Dataview"), then paste any of these into a note:
 
-Append-only log of wiki generation events. **Preserved across regenerations** — prior entries survive verbatim. Counts come from the live `GraphStore`, not the (potentially stale) manifest:
+All services with their stack and start date:
 
-```
-## [2026-06-29T21:53:00Z] wiki | run_id=abc123, 4 nodes, 2 edges
-```
-
-## Obsidian tips
-
-- **Graph view** — all `[[wikilinks]]` render as a force-directed graph. This is the entity-relationship graph visualized.
-- **Backlinks** — Obsidian automatically shows inbound references at the bottom of each page (equivalent to incoming edges).
-- **Dataview** — the YAML frontmatter enables structured queries. Example: list all services written in Go:
-  ```dataview
-  LIST FROM #service WHERE lang = "go"
-  ```
-- **Tags** — each page is tagged with `[<type>, <ns>, "entity"]`, enabling filtered views.
-
-## CLI
-
-```bash
-lorekeep wiki          # regenerate wiki/ from facts.jsonl (force)
-```
-
-Wiki generation also runs automatically after every `facts.jsonl` mutation:
-
-- **`compile`** — always regens (unless `_do_auto_resolve` already regend after merging pending journals; never double).
-- **`resolve`** — regens only if facts actually changed (`merge_count > 0` or `flagged_count > 0`). Quarantine-only resolves skip wiki regen.
-- **Daemon auto-resolve** — regens on actual merge (`_do_auto_resolve` returns `True`).
-
-You never need to run `lorekeep wiki` manually unless you want to force a refresh.
-
-## Determinism
-
-Re-generating the wiki from unchanged `facts.jsonl` yields **byte-identical** pages (entity pages, index, overview). The only exception is `log.md`, which is append-only by design.
-
-Wiki generation is **best-effort** — if it fails (e.g. slug collision, disk error), the triggering command (`compile`, `resolve`) still succeeds. `facts.jsonl` is never blocked by a wiki failure.
-
-## Path resolution
-
-The wiki lives at `<data-home>/wiki/` (same level as `raw/` and `graph/`). Override with:
-
-```bash
-LOREKEEP_WIKI=/path/to/wiki uvx lorekeep wiki
+```dataview
+TABLE lang, valid_from
+FROM #service
 ```
 
-See [data-home.md](data-home.md) for the full 4-tier path resolution.
+Currently-valid entities (no end date — `valid_to` is the empty string for
+"present"):
 
-## Next
+```dataview
+TABLE type, valid_from
+FROM #entity
+WHERE valid_to = ""
+```
 
-- [Compile guide](compile.md) — how `facts.jsonl` is produced.
-- [Serve guide](serve.md) — how agents consume the same graph over MCP.
+Timeline (everything with a known start, newest first):
+
+```dataview
+TABLE valid_from, valid_to
+FROM #entity
+WHERE valid_from != ""
+SORT valid_from DESC
+```
+
+By namespace (`ns` is a list, so use `contains`):
+
+```dataview
+TABLE type, valid_from
+FROM #entity
+WHERE contains(ns, "backend")
+```
+
+## 7. Refresh after compile
+
+Wiki regeneration is **atomic** — pages build in a temp sibling dir, then
+`os.rename` swaps into place. Obsidian always sees either the old or the new
+version, never a mix, so it's safe to leave the vault open while `compile` or
+the daemon regenerates. Obsidian picks up file changes live; if a page looks
+stale, switch notes or re-open the vault.
+
+You rarely need `lorekeep wiki` manually — it auto-regenerates after every
+`facts.jsonl` mutation (`compile`, a real `resolve`, daemon auto-resolve on
+merge). Use it (or `--open`) only to force a refresh.
+
+## 8. Multi-device
+
+The wiki is **derived**, not part of the backup (`lorekeep backup` tracks
+`raw/` + `schema.json`). Each machine regenerates its own `wiki/` from
+`facts.jsonl`. **Don't hand-edit wiki pages** — the next regen overwrites them
+(`log.md` is the only append-only exception).
+
+## Troubleshooting
+
+- **Empty wiki / `facts.jsonl not found`** — run `lorekeep compile` first.
+- **Unresolved `[[wikilink]]`** — slugs replace `:` and `/` with `-`
+  (`svc:payments-api` → `svc-payments-api`). A collision between two node IDs
+  that slug identically raises `ValueError` at generation rather than
+  overwriting.
+- **Obsidian didn't open with `--open`** — install Obsidian, or open the folder
+  path the command printed via *Open vault*.
+- **Dataview shows nothing** — enable the plugin (*Settings → Community
+  plugins → Dataview → Enable*), and make sure *Enable Dataview queries* is on.
+
+## Reference
+
+- [Compiling](compile.md) — how `facts.jsonl` is produced.
+- [Data home & path resolution](data-home.md) — where `wiki/` lives (env /
+  `LOREKEEP_HOME` / dev / XDG).
+- Re-generating from unchanged input is **byte-identical** (determinism);
+  `log.md` is the only non-deterministic file (append-only).
+- Override the wiki path: `LOREKEEP_WIKI=/path uvx lorekeep wiki`.

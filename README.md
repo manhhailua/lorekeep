@@ -88,7 +88,7 @@ uvx lorekeep mcp add --agent claude --ns private
 uvx lorekeep doctor
 ```
 
-Restart Claude Code → 14 Lorekeep tools are available (9 read + 5 write), scoped to your namespace. Open `~/.local/share/lorekeep/wiki/` in Obsidian to browse the graph as a human.
+Restart Claude Code → 14 Lorekeep tools are available (9 read + 5 write), scoped to your namespace. Open `~/.local/share/lorekeep/wiki/` in Obsidian to browse the graph as a human — or just run `uvx lorekeep wiki --open` to generate + launch it. See [Browsing the wiki in Obsidian](docs/guides/wiki.md).
 
 ## Lifecycle
 
