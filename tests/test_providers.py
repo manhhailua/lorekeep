@@ -7,9 +7,11 @@ import pytest
 
 from lorekeep.providers import (
     ModelInfo,
+    NATIVE_PROVIDERS,
     _normalize_model_name,
     format_cost,
     is_dynamic,
+    model_provider,
     search_providers,
     suggest_model_prefix,
     validate_model_prefix,
@@ -238,9 +240,12 @@ class TestSuggestModelPrefix:
     def test_unknown_returns_none(self):
         assert suggest_model_prefix("some-custom-model") is None
 
-    def test_qwen_ambiguous_returns_none(self):
-        # qwen-* is ambiguous (DashScope openai/ + api_base vs native dashscope/)
-        assert suggest_model_prefix("qwen-plus") is None
+    def test_qwen_plus_suggests_dashscope(self):
+        # native dashscope/ is the recommended form → qwen-* is unambiguous now
+        assert suggest_model_prefix("qwen-plus") == "dashscope/qwen-plus"
+
+    def test_qwen_max_suggests_dashscope(self):
+        assert suggest_model_prefix("qwen-max") == "dashscope/qwen-max"
 
 
 class TestValidateModelPrefix:
@@ -268,10 +273,36 @@ class TestValidateModelPrefix:
         assert "totally-unknown-model" in msg
         assert "{provider}/{model}" in msg  # rule explained with template
 
-    def test_qwen_bare_raises_without_guessing_prefix(self):
-        # ambiguous: must NOT silently suggest a wrong prefix
+    def test_qwen_bare_raises_with_dashscope_suggestion(self):
+        # native dashscope/ recommended → suggest it
         with pytest.raises(ValueError) as ei:
             validate_model_prefix("qwen-plus")
-        msg = str(ei.value)
-        assert "dashscope/qwen-plus" not in msg
-        assert "openai/qwen-plus" not in msg
+        assert "dashscope/qwen-plus" in str(ei.value)
+
+
+class TestModelProvider:
+    """``model_provider`` extracts the ``{provider}`` prefix."""
+
+    def test_dashscope(self):
+        assert model_provider("dashscope/qwen-plus") == "dashscope"
+
+    def test_openai(self):
+        assert model_provider("openai/gpt-4o-mini") == "openai"
+
+    def test_only_first_slash(self):
+        # model names can contain '/' after the provider (rare) — only split once
+        assert model_provider("openai/org/model") == "openai"
+
+
+class TestNativeProviders:
+    """NATIVE_PROVIDERS = providers litellm knows the endpoint for (no api_base).
+    Dynamic providers (free-text endpoints) must be excluded."""
+
+    def test_native_includes_common(self):
+        for p in ("openai", "anthropic", "deepseek", "dashscope", "gemini"):
+            assert p in NATIVE_PROVIDERS, p
+
+    def test_native_excludes_dynamic(self):
+        # these legitimately take an api_base
+        for p in ("ollama", "vllm", "lm_studio", "openai_compat"):
+            assert p not in NATIVE_PROVIDERS, p

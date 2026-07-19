@@ -82,10 +82,7 @@ def _normalize_model_name(name: str, provider: str) -> str:
 
 
 # Bare model names mapped to their canonical ``{provider}/{model}`` form, used
-# only to *suggest* a fix when a user writes an unambiguous bare name. Kept
-# conservative: ``qwen-*`` is intentionally absent (DashScope uses ``openai/`` +
-# ``api_base`` while native litellm uses ``dashscope/`` — ambiguous, so we emit
-# the rule instead of guessing).
+# only to *suggest* a fix when a user writes an unambiguous bare name.
 _BARE_ALIASES: dict[str, str] = {
     "deepseek-chat": "deepseek/deepseek-chat",
     "deepseek-reasoner": "deepseek/deepseek-reasoner",
@@ -98,6 +95,10 @@ _BARE_ALIASES: dict[str, str] = {
     "claude-3-5-sonnet-20241022": "anthropic/claude-3-5-sonnet-20241022",
     "claude-3-haiku-20240307": "anthropic/claude-3-haiku-20240307",
     "claude-3-opus-20240229": "anthropic/claude-3-opus-20240229",
+    # qwen-* → native dashscope/ (litellm knows the endpoint; no api_base)
+    "qwen-plus": "dashscope/qwen-plus",
+    "qwen-max": "dashscope/qwen-max",
+    "qwen-turbo": "dashscope/qwen-turbo",
 }
 
 
@@ -134,6 +135,25 @@ def validate_model_prefix(model: str) -> None:
         "'anthropic/claude-sonnet-4-20250514', 'deepseek/deepseek-chat', "
         "'ollama/llama3'."
     )
+
+
+def model_provider(model: str) -> str:
+    """Return the ``{provider}`` prefix of a litellm model string.
+
+    ``"dashscope/qwen-plus"`` → ``"dashscope"``. Splits on the first ``/`` only,
+    so model names containing a later ``/`` are handled.
+    """
+    return model.split("/", 1)[0]
+
+
+# Providers litellm knows the endpoint for — no ``api_base`` needed. Everything
+# in :data:`DYNAMIC_PROVIDERS` (ollama, vllm, lm_studio, …) and custom
+# OpenAI-compatible gateways legitimately takes an ``api_base``.
+NATIVE_PROVIDERS: set[str] = {
+    "openai", "anthropic", "deepseek", "dashscope", "gemini",
+    "mistral", "groq", "openrouter", "together_ai", "xai",
+    "perplexity", "cohere", "ai21",
+}
 
 
 
