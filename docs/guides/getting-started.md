@@ -98,12 +98,18 @@ key inline. Edit it here if you want a different one. The key lives in
 
 ```yaml
 provider:
-  backend: openai
-  model: openai/deepseek-v4-flash          # any litellm model string
-  api_base: https://api.deepseek.com/v1
+  model: deepseek/deepseek-chat            # {provider}/{model} — litellm routes by the prefix
+  api_base: null                           # native deepseek provider — no api_base needed
   api_key: sk-...                          # inline; config.yaml is gitignored
   temperature: 0.0
 ```
+
+The model string must be `{provider}/{model}` (e.g. `openai/gpt-4o-mini`,
+`anthropic/claude-sonnet-4-20250514`, `deepseek/deepseek-chat`,
+`ollama/llama3`). Native providers (`openai`, `anthropic`, `deepseek`) need no
+`api_base`; OpenAI-compatible endpoints (DashScope, Ollama) set `api_base` and
+use the `openai/` prefix. A bare name like `deepseek-chat` is rejected with a
+suggestion — `lorekeep doctor` will tell you exactly what's wrong.
 
 Prefer an env var instead? Set `api_key_env: DEEPSEEK_API_KEY` (and
 `api_key: null`), then `export DEEPSEEK_API_KEY=sk-...`. Both work.
@@ -189,10 +195,12 @@ recovery — is in [Backing up the data home](backup.md).
 - **`lorekeep serve` hangs** — it blocks on stdio waiting for an MCP client.
   To just confirm it boots, run it under a timeout with stdin closed:
   `timeout 3 uvx lorekeep serve --transport stdio </dev/null`.
-- **Compile gave 0 nodes** — the provider wasn't reached. Check
-  `api_key_env` / `api_base` in `config.yaml`. If you switched provider or
-  model after a first compile, delete `<data-home>/cache.json` (the cache key
-  doesn't include the model) and recompile.
+- **Compile gave 0 nodes** — the provider wasn't reached. Run
+  `lorekeep doctor` first: it pings the provider and reports auth / model /
+  endpoint failures directly. Then check `model` (must be
+  `{provider}/{model}`), `api_base`, and `api_key` / `api_key_env` in
+  `config.yaml`. (The cache key includes the model, so switching it
+  re-extracts automatically — no need to delete `cache.json`.)
 - **`check` reports dangling edges** — an edge points at a node that isn't in
   the graph. Re-open the source doc at the `path:line` in the edge's `src` and
   fix the reference, then recompile.

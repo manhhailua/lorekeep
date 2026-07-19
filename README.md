@@ -198,7 +198,7 @@ Every result is filtered to the caller's namespace. Write tools append to `pendi
 dev marker > XDG):
 ```yaml
 provider:
-  model: openai/qwen-plus                              # litellm model string
+  model: openai/qwen-plus                              # {provider}/{model} — litellm routes by prefix
   api_base: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
   api_key_env: DASHSCOPE_API_KEY                       # env var name (preferred)
   api_key: null                                        # or inline (gitignored config only)

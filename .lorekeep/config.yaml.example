@@ -1,28 +1,37 @@
-# Copy to .lorekeep/config.yaml (gitignored). Provider used at compile time only.
-# API keys NEVER go in this file - set them as env vars (api_key_env names which).
+# Copy to .lorekeep/config.yaml (gitignored). Provider is used at compile time only.
+#
+# The model string MUST be '{provider}/{model}' — litellm routes by the prefix:
+#   openai/gpt-4o-mini, anthropic/claude-sonnet-4-20250514, deepseek/deepseek-chat,
+#   ollama/llama3. Native providers (openai, anthropic, deepseek) need NO api_base.
+#   OpenAI-compatible endpoints (DashScope, Ollama) set api_base AND use the openai/ prefix.
+#
+# API keys: prefer api_key_env (name of an env var you export). An inline api_key is
+# also accepted since this file is gitignored — but never commit it.
 #
 # Option A: Alibaba ModelStudio / DashScope (international, OpenAI-compatible)
 provider:
-  backend: openai
   model: openai/qwen-plus                          # qwen-max | qwen-plus | qwen-turbo
   api_base: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
   api_key_env: DASHSCOPE_API_KEY                   # export DASHSCOPE_API_KEY=...
   temperature: 0.0
 #
-# Option B: OpenAI
+# Option B: OpenAI (native — no api_base)
 # provider:
-#   backend: openai
 #   model: openai/gpt-4o-mini
-#   api_base: null
 #   api_key_env: OPENAI_API_KEY
 #   temperature: 0.0
 #
-# Option C: Ollama (local, strict privacy)
+# Option C: DeepSeek (native litellm provider — no api_base)
+#   real models: deepseek-chat (V3) | deepseek-reasoner (R1)
 # provider:
-#   backend: ollama
+#   model: deepseek/deepseek-chat
+#   api_key_env: DEEPSEEK_API_KEY
+#   temperature: 0.0
+#
+# Option D: Ollama (local, strict privacy)
+# provider:
 #   model: ollama/llama3
 #   api_base: http://localhost:11434
-#   api_key_env: null
 #   temperature: 0.0
 compile:
   chunk_lines: 60

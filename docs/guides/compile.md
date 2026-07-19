@@ -24,7 +24,6 @@ For strict privacy, use a local model:
 
 ```yaml
 provider:
-  backend: ollama
   model: ollama/llama3
   api_base: http://localhost:11434
 ```
