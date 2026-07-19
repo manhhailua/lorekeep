@@ -1,9 +1,10 @@
-# Browsing the wiki in Obsidian
+# Browsing the wiki (Obsidian + Tolaria)
 
 The compiled graph (`facts.jsonl`) is machine-readable — consumed by agents over
-MCP. The **wiki** is its human-readable projection: Obsidian-compatible markdown
-pages with `[[wikilinks]]`, YAML frontmatter, tags, and a graph view. This guide
-is the fastest way to browse it.
+MCP. The **wiki** is its human-readable projection: a flat folder of markdown
+pages with `[[wikilinks]]`, YAML frontmatter (including relationship fields),
+and tags. **The same `wiki/` folder opens in both Obsidian and Tolaria** — no
+separate build per app.
 
 ## 1. Quick start
 
@@ -23,7 +24,8 @@ manually — the wiki is already generated.
 ## 2. Open the vault manually
 
 In Obsidian: **Open vault → Open folder as vault** → select the `wiki/`
-directory.
+directory. The same folder also opens in [Tolaria](https://github.com/refactoringhq/tolaria)
+(see [§9](#9-tolaria)).
 
 | Install | Vault path |
 |---|---|
@@ -38,15 +40,23 @@ directory.
 
 ## 3. What's in the vault
 
+Flat layout — one `.md` per node at the root (Tolaria requires a flat vault;
+Obsidian works the same either way):
+
 ```
 wiki/
 ├── index.md              # catalog of every entity, grouped by type
 ├── overview.md           # graph stats dashboard (counts, temporal range, ns)
 ├── log.md                # append-only generation log
-└── entities/<type>/<slug>.md   # one page per node
+├── svc-payments-api.md   # one page per node, <slug>.md
+├── svc-auth.md
+└── …
 ```
 
-Each entity page has YAML frontmatter that Obsidian (and Dataview) can query:
+Each entity page has YAML frontmatter that Obsidian/Dataview/Tolaria can query.
+Out-edges are emitted as **relationship fields** (any frontmatter field holding
+`[[wikilinks]]` — Tolaria treats these as relationships; Obsidian/Dataview as
+queryable lists):
 
 ```yaml
 ---
@@ -58,6 +68,8 @@ valid_to: ""                 # empty ⇒ currently valid
 sources:
   - "raw/backend/payments.md:3"
 tags: ["service", "backend", "entity"]
+depends_on:                  # ← relationship field (out-edges)
+  - "[[svc-auth]]"
 ---
 ```
 
@@ -142,7 +154,33 @@ You rarely need `lorekeep wiki` manually — it auto-regenerates after every
 `facts.jsonl` mutation (`compile`, a real `resolve`, daemon auto-resolve on
 merge). Use it (or `--open`) only to force a refresh.
 
-## 8. Multi-device
+## 9. Tolaria
+
+The same `wiki/` folder opens in [Tolaria](https://github.com/refactoringhq/tolaria)
+(file-first, git-first, macOS/Win/Linux). The flat layout + relationship
+frontmatter are shaped for it:
+
+- **Flat vault** — Tolaria indexes only root-level `.md`, so the flat layout is
+  required (and is exactly what lorekeep emits).
+- **Relationship panel + neighborhood** — every out-edge is a frontmatter field
+  holding `[[wikilinks]]` (`depends_on`, `relates_to`, …), which Tolaria detects
+  as relationships. Open an entity → the Inspector's Relationships panel shows
+  them as clickable chips; *Neighborhood* mode pivots the note list by them.
+- **Types** — the `type:` field (`service`, `team`, `concept`, …) drives Tolaria's
+  type grouping in the sidebar.
+- **Backlinks** — inbound edges (body `[[wikilinks]]`) show in Tolaria's
+  backlinks panel.
+
+To open: **File → Open vault** → select the `wiki/` folder (same one as Obsidian
+— you can point either app at it). `lorekeep wiki --open` launches Obsidian; for
+Tolaria, open the printed path manually.
+
+> **One vault, two apps.** Obsidian and Tolaria read the same files, so you can
+> use either (or both) on the same `wiki/`. The cosmetic difference: Obsidian
+> has no `entities/<type>/` file-tree grouping (Tolaria is flat by design) — use
+> the `type:` field, tags, or `index.md` to group instead.
+
+## 10. Multi-device
 
 The wiki is **derived**, not part of the backup (`lorekeep backup` tracks
 `raw/` + `schema.json`). Each machine regenerates its own `wiki/` from
