@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.5](https://github.com/manhhailua/lorekeep/compare/v0.11.4...v0.11.5) (2026-07-19)
+
+
+### Bug Fixes
+
+* treat api_base as advanced — native providers need none ([#122](https://github.com/manhhailua/lorekeep/issues/122)) ([cbbd714](https://github.com/manhhailua/lorekeep/commit/cbbd7148ca4d2bc6c15833b154a2f6dbfc76b90b))
+
 ## [0.11.4](https://github.com/manhhailua/lorekeep/compare/v0.11.3...v0.11.4) (2026-07-19)
 
 
