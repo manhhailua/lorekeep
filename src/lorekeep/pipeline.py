@@ -1,6 +1,7 @@
 """Pipeline: ingest -> extract -> resolve -> writer."""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from lorekeep.compile.extract import ExtractionCache, extract_chunk
@@ -9,6 +10,8 @@ from lorekeep.compile.providers import LLMProvider
 from lorekeep.compile.resolve import resolve
 from lorekeep.compile.writer import facts_hash, run_id, write_graph
 from lorekeep.models import Edge, Manifest, Node, Schema, now_iso
+
+log = logging.getLogger("lorekeep")
 
 
 def compile_graph(
@@ -34,6 +37,7 @@ def compile_graph(
             for ak, av in aliases.items():       # union variants, last-writer-wins drops aliases
                 all_aliases[ak] = list(dict.fromkeys(all_aliases.get(ak, []) + av))
         except Exception as exc:               # skip-and-log; partial compile is valid
+            log.exception("compile: chunk failed path=%s line=%s", chunk.path, chunk.start_line)
             errors.append({"path": chunk.path, "line": chunk.start_line,
                            "message": str(exc)})
     cache.save()

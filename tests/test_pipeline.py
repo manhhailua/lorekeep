@@ -43,3 +43,26 @@ def test_compile_pipeline_produces_facts(tmp_path: Path, fixtures: Path):
     assert (out / "manifest.json").exists()
     assert manifest.node_count == 4
     assert manifest.edge_count == 2
+
+
+def test_pipeline_per_chunk_failure_logs_exception(tmp_path: Path, fixtures: Path, caplog):
+    """A per-chunk failure must be logged (full traceback) for daemon/verbose
+    debugging, while the manifest still records the short message."""
+    import logging as _logging
+    raw = tmp_path / "raw"
+    copy_fixture(fixtures / "raw/backend/payments.md",
+                 raw / "teams/backend/payments.md")
+    schema = Schema.load(json.loads((fixtures / "schema.json").read_text()))
+
+    class _Boom(FakeProvider):
+        def extract_json(self, system, user):
+            raise RuntimeError("LLM Provider NOT provided")
+
+    with caplog.at_level(_logging.ERROR, logger="lorekeep"):
+        manifest = compile_graph(raw_root=raw, out_dir=tmp_path / "graph",
+                                 schema=schema, provider=_Boom(responses=[]),
+                                 cache_path=tmp_path / "cache.json", chunk_lines=60)
+    assert manifest.node_count == 0
+    assert manifest.errors                      # short message preserved
+    assert any("compile: chunk failed" in r.message for r in caplog.records)
+    assert any(r.exc_info for r in caplog.records)  # traceback attached
