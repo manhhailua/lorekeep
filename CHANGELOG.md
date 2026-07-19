@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.4](https://github.com/manhhailua/lorekeep/compare/v0.11.3...v0.11.4) (2026-07-19)
+
+
+### Bug Fixes
+
+* simplify provider config, validate model prefix, ping provider in doctor ([#118](https://github.com/manhhailua/lorekeep/issues/118)) ([226e768](https://github.com/manhhailua/lorekeep/commit/226e768dc672773d3db5ed48dadc8dd072e8d105))
+
 ## [0.11.3](https://github.com/manhhailua/lorekeep/compare/v0.11.2...v0.11.3) (2026-07-07)
 
 
