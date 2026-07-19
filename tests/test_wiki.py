@@ -117,14 +117,14 @@ class TestGenerateWiki:
 
     def test_entity_pages_created(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
-        assert (wiki_dir / "entities" / "service" / "svc-payments-api.md").exists()
-        assert (wiki_dir / "entities" / "service" / "svc-auth.md").exists()
-        assert (wiki_dir / "entities" / "team" / "team-backend.md").exists()
-        assert (wiki_dir / "entities" / "decision" / "dec-adr-007.md").exists()
+        assert (wiki_dir / "svc-payments-api.md").exists()
+        assert (wiki_dir / "svc-auth.md").exists()
+        assert (wiki_dir / "team-backend.md").exists()
+        assert (wiki_dir / "dec-adr-007.md").exists()
 
     def test_entity_frontmatter(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
-        page = (wiki_dir / "entities" / "service" / "svc-payments-api.md").read_text()
+        page = (wiki_dir / "svc-payments-api.md").read_text()
         assert page.startswith("---")
         assert 'id: "svc:payments-api"' in page
         assert 'type: "service"' in page
@@ -136,19 +136,19 @@ class TestGenerateWiki:
 
     def test_entity_title_from_props(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
-        page = (wiki_dir / "entities" / "service" / "svc-payments-api.md").read_text()
+        page = (wiki_dir / "svc-payments-api.md").read_text()
         assert "# payments-api" in page
 
     def test_entity_props_table(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
-        page = (wiki_dir / "entities" / "service" / "svc-payments-api.md").read_text()
+        page = (wiki_dir / "svc-payments-api.md").read_text()
         assert "## Properties" in page
         assert "| name | payments-api |" in page
         assert "| lang | go |" in page
 
     def test_entity_outgoing_relationships(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
-        page = (wiki_dir / "entities" / "service" / "svc-payments-api.md").read_text()
+        page = (wiki_dir / "svc-payments-api.md").read_text()
         assert "## Relationships" in page
         assert "depends_on" in page
         assert "[[svc-auth]]" in page
@@ -156,12 +156,12 @@ class TestGenerateWiki:
 
     def test_entity_incoming_relationships(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
-        page = (wiki_dir / "entities" / "service" / "svc-auth.md").read_text()
+        page = (wiki_dir / "svc-auth.md").read_text()
         assert "[[svc-payments-api]]" in page
 
     def test_entity_timeline(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
-        page = (wiki_dir / "entities" / "service" / "svc-payments-api.md").read_text()
+        page = (wiki_dir / "svc-payments-api.md").read_text()
         assert "## Timeline" in page
         assert "Valid from" in page
 
@@ -207,13 +207,13 @@ class TestGenerateWiki:
     def test_regenerates_clean(self, graph_dir, wiki_dir):
         """Re-generation wipes old pages (stale entities removed)."""
         generate_wiki(graph_dir, wiki_dir)
-        stale = wiki_dir / "entities" / "service" / "old-service.md"
+        stale = wiki_dir / "old-service.md"
         stale.parent.mkdir(parents=True, exist_ok=True)
         stale.write_text("# stale")
 
         generate_wiki(graph_dir, wiki_dir)
         assert not stale.exists()
-        assert (wiki_dir / "entities" / "service" / "svc-payments-api.md").exists()
+        assert (wiki_dir / "svc-payments-api.md").exists()
 
 
 class TestDeterminism:
@@ -227,11 +227,11 @@ class TestDeterminism:
         for f in ("index.md", "overview.md"):
             assert (dir_a / f).read_text() == (dir_b / f).read_text()
 
-        for typ in ("service", "team", "decision"):
-            ents = (dir_a / "entities" / typ).glob("*.md")
-            for ent in ents:
-                rel = ent.relative_to(dir_a)
-                assert (dir_b / rel).read_text() == ent.read_text(), f"diff in {rel}"
+        for ent in dir_a.glob("*.md"):
+            if ent.name in ("index.md", "overview.md", "log.md"):
+                continue
+            rel = ent.relative_to(dir_a)
+            assert (dir_b / rel).read_text() == ent.read_text(), f"diff in {rel}"
 
     def test_sorted_output(self, graph_dir, wiki_dir):
         """Entity pages and index entries are sorted for deterministic output."""
@@ -343,7 +343,7 @@ class TestWikiCLI:
         result = runner.invoke(app, ["resolve"])
         assert result.exit_code == 0, result.stdout
 
-        entity = home / "wiki" / "entities" / "service" / "svc-new-svc.md"
+        entity = home / "wiki" / "svc-new-svc.md"
         assert entity.exists()
         assert "# new-svc" in entity.read_text()
 
@@ -366,7 +366,7 @@ class TestSyncInvariant:
             if d["kind"] != "node":
                 continue
             slug = _slug(d["id"])
-            page = wiki_dir / "entities" / d["type"] / f"{slug}.md"
+            page = wiki_dir / f"{slug}.md"
             assert page.exists(), f"missing entity page for {d['id']}"
 
     def test_every_edge_has_wikilinks(self, graph_dir, wiki_dir):
@@ -377,8 +377,8 @@ class TestSyncInvariant:
                 continue
             from_slug = _slug(d["from"])
             to_slug = _slug(d["to"])
-            from_page = (wiki_dir / "entities").rglob(f"{from_slug}.md")
-            to_page = (wiki_dir / "entities").rglob(f"{to_slug}.md")
+            from_page = wiki_dir.glob(f"{from_slug}.md")
+            to_page = wiki_dir.glob(f"{to_slug}.md")
             from_pg = next(from_page, None)
             to_pg = next(to_page, None)
             assert from_pg, f"source page {from_slug} missing"
@@ -393,7 +393,7 @@ class TestYAMLFrontmatter:
     def test_frontmatter_parses_as_yaml(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
         import yaml
-        page = (wiki_dir / "entities" / "service" / "svc-payments-api.md").read_text()
+        page = (wiki_dir / "svc-payments-api.md").read_text()
         fm_block = page.split("---")[1]
         data = yaml.safe_load(fm_block)
         assert data["id"] == "svc:payments-api"
@@ -406,10 +406,34 @@ class TestYAMLFrontmatter:
     def test_frontmatter_null_dates(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
         import yaml
-        page = (wiki_dir / "entities" / "service" / "svc-auth.md").read_text()
+        page = (wiki_dir / "svc-auth.md").read_text()
         fm_block = page.split("---")[1]
         data = yaml.safe_load(fm_block)
         assert data["valid_from"] == ""
+
+    def test_frontmatter_relationship_fields(self, graph_dir, wiki_dir):
+        """Out-edges are emitted as frontmatter fields holding [[wikilinks]] —
+        Tolaria detects these as relationships; Obsidian/Dataview query them."""
+        generate_wiki(graph_dir, wiki_dir)
+        import yaml
+        page = (wiki_dir / "svc-payments-api.md").read_text()
+        fm_block = page.split("---")[1]
+        data = yaml.safe_load(fm_block)
+        assert data["depends_on"] == ["[[svc-auth]]"]
+
+
+class TestFlatLayout:
+    """Unified flat layout: one <slug>.md per node at the wiki root (no
+    entities/ subdir) — required for Tolaria's flat vault, fine for Obsidian."""
+
+    def test_no_entities_subdir(self, graph_dir, wiki_dir):
+        generate_wiki(graph_dir, wiki_dir)
+        assert not (wiki_dir / "entities").exists()
+
+    def test_pages_at_root(self, graph_dir, wiki_dir):
+        generate_wiki(graph_dir, wiki_dir)
+        for slug in ("svc-payments-api", "svc-auth", "team-backend", "dec-adr-007"):
+            assert (wiki_dir / f"{slug}.md").exists(), slug
 
 
 class TestEmptyGraph:
@@ -440,7 +464,7 @@ class TestPropsSpecialChars:
         ))
         wiki = tmp_path / "wiki"
         generate_wiki(graph, wiki)
-        page = (wiki / "entities" / "service" / "svc-test.md").read_text()
+        page = (wiki / "svc-test.md").read_text()
         assert "a \\| b" in page
 
     def test_newline_in_prop_value(self, tmp_path):
@@ -456,7 +480,7 @@ class TestPropsSpecialChars:
         ))
         wiki = tmp_path / "wiki"
         generate_wiki(graph, wiki)
-        page = (wiki / "entities" / "service" / "svc-multiline.md").read_text()
+        page = (wiki / "svc-multiline.md").read_text()
         assert "line1 line2" in page
         assert "\nline2 |" not in page
 
@@ -473,7 +497,7 @@ class TestPropsSpecialChars:
         ))
         wiki = tmp_path / "wiki"
         generate_wiki(graph, wiki)
-        page = (wiki / "entities" / "service" / "svc-typed.md").read_text()
+        page = (wiki / "svc-typed.md").read_text()
         assert "8080" in page
         assert "true" in page
 

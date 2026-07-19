@@ -365,8 +365,8 @@ class TestWikiGeneration:
         assert result["nodes"] == 2
         assert (wiki / "index.md").exists()
         assert (wiki / "overview.md").exists()
-        assert (wiki / "entities" / "service" / "svc-a.md").exists()
-        assert (wiki / "entities" / "service" / "svc-b.md").exists()
+        assert (wiki / "svc-a.md").exists()
+        assert (wiki / "svc-b.md").exists()
 
 
 # ── 8. Resolve pipeline ────────────────────────────────────────────────────

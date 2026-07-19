@@ -5,14 +5,15 @@ It is fully derived from facts.jsonl — never the reverse. Re-generating
 from unchanged input yields byte-identical pages (except log.md, which
 is append-only by design).
 
-Output structure:
+Output structure (flat — one .md per node at the root, browsable in BOTH
+Obsidian and Tolaria from the same folder):
     wiki/
     ├── index.md                # catalog of all entities, grouped by type
     ├── log.md                  # append-only generation log
     ├── overview.md             # graph stats dashboard
-    └── entities/
-        └── <type>/
-            └── <slug>.md       # one page per node, [[wikilinks]] for edges
+    └── <slug>.md               # one page per node, [[wikilinks]] for edges,
+                                #   out-edges also as frontmatter relationship
+                                #   fields (Tolaria relationship panel)
 """
 from __future__ import annotations
 
@@ -77,7 +78,7 @@ def _fmt_prop_value(val) -> str:
     return s
 
 
-def _frontmatter(node: Node) -> str:
+def _frontmatter(node: Node, out_edges: list[Edge] | None = None) -> str:
     lines = ["---"]
     lines.append(f"id: {_yaml_scalar(node.id)}")
     lines.append(f"type: {_yaml_scalar(node.type)}")
@@ -92,6 +93,19 @@ def _frontmatter(node: Node) -> str:
         lines.append("sources: []")
     tags = [node.type] + list(node.ns) + ["entity"]
     lines.append(f"tags: {_yaml_list(tags)}")
+    # Out-edges as relationship frontmatter fields. Tolaria detects any
+    # frontmatter field holding [[wikilink]] values as a relationship (panel +
+    # neighborhood graph); Obsidian/Dataview treat them as queryable lists.
+    # Inbound edges stay body-only (both apps surface them as backlinks).
+    if out_edges:
+        by_type: dict[str, list[str]] = {}
+        for e in out_edges:
+            by_type.setdefault(e.type, []).append(_slug(e.to))
+        for etype in sorted(by_type):
+            targets = sorted(set(by_type[etype]))
+            lines.append(f"{etype}:")
+            for t in targets:
+                lines.append(f'  - "[[{t}]]"')
     lines.append("---")
     return "\n".join(lines)
 
@@ -157,7 +171,7 @@ def _entity_page(node: Node, store: GraphStore) -> str:
     in_e = store.in_edges(node.id)
 
     parts = [
-        _frontmatter(node),
+        _frontmatter(node, out_e),
         "",
         f"# {title}",
         "",
@@ -352,7 +366,10 @@ def generate_wiki(
     for node in sorted(nodes, key=lambda n: (n.type, n.id)):
         page = _entity_page(node, store)
         slug = _slug(node.id)
-        entity_path = build_dir / "entities" / node.type / f"{slug}.md"
+        # Flat layout: root-level <slug>.md. Required for Tolaria (flat vault —
+        # it indexes only root-level .md); works identically in Obsidian (links
+        # resolve by filename stem, tags/type frontmatter group entities).
+        entity_path = build_dir / f"{slug}.md"
         _atomic_write(entity_path, page)
 
     _atomic_write(build_dir / "index.md", _index_page(store))
