@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/manhhailua/lorekeep/compare/v0.11.5...v0.12.0) (2026-07-19)
+
+
+### Features
+
+* Rich progress bars + colored status output for the CLI ([#125](https://github.com/manhhailua/lorekeep/issues/125)) ([c0ae697](https://github.com/manhhailua/lorekeep/commit/c0ae697a1aa59d56cc0dee1e8fb28cd984f393b2))
+
 ## [0.11.5](https://github.com/manhhailua/lorekeep/compare/v0.11.4...v0.11.5) (2026-07-19)
 
 
