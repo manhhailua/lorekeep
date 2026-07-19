@@ -25,8 +25,17 @@ app = typer.Typer(help="Lorekeep — compile team docs into a temporal knowledge
 
 # Empty callback forces multi-command mode so subcommands are not auto-promoted.
 @app.callback()
-def _main() -> None:
+def _main(
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Debug-level logs."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Warnings only; suppress progress."),
+) -> None:
     """Lorekeep — compile team docs into a temporal knowledge graph."""
+    import logging as _logging
+    from lorekeep.output import configure_logging
+    if os.environ.get("LOREKEEP_DEBUG"):
+        verbose = True
+    level = _logging.DEBUG if verbose else (_logging.WARNING if quiet else _logging.INFO)
+    configure_logging(level)
 
 
 def _build_provider(config: Config) -> LiteLLMProvider:
@@ -177,20 +186,47 @@ def _report_compile_errors(manifest, *, exit_on_total_failure: bool = True) -> N
             )
 
 
+def _progress_ctx(raw_root, chunk_lines):
+    """Context manager for a compile progress bar.
+
+    tty + not quiet → a Rich Progress bar (total pre-counted via ingest, a pure
+    file-slicer). Else → a nullcontext whose handle is None, so compile_graph
+    runs silent (current behavior under CliRunner / the daemon's agent.log).
+    """
+    from contextlib import nullcontext
+    from lorekeep.compile.ingest import ingest as _ingest
+    from lorekeep.output import is_quiet, is_terminal, progress
+    if not is_quiet() and is_terminal():
+        total = len(_ingest(raw_root, chunk_lines=chunk_lines))
+        return progress(f"Compiling {total} chunk(s)", total=total)
+    return nullcontext(None)
+
+
+def _progress_cb(handle):
+    """Build an on_progress callback from a progress handle (None → None)."""
+    if not handle:
+        return None
+    return lambda i, total, chunk: handle.advance()
+
+
 @app.command()
 def compile() -> None:
     """Compile raw/ → facts.jsonl + merge pending + generate wiki (all-in-one)."""
+    from lorekeep.output import ok
     p = resolve_paths()
     schema = load_schema(p["schema"])
     config = load_config(p["config"])
     provider = _make_provider(config)
 
-    manifest = compile_graph(
-        raw_root=p["raw"], out_dir=p["out"], schema=schema,
-        provider=provider, cache_path=p["cache"], chunk_lines=config.compile.chunk_lines,
-    )
-    typer.echo(f"compiled: {manifest.node_count} nodes, {manifest.edge_count} edges, "
-               f"run_id={manifest.run_id}, facts_hash={manifest.facts_hash}")
+    with _progress_ctx(p["raw"], config.compile.chunk_lines) as handle:
+        manifest = compile_graph(
+            raw_root=p["raw"], out_dir=p["out"], schema=schema,
+            provider=provider, cache_path=p["cache"], chunk_lines=config.compile.chunk_lines,
+            on_progress=_progress_cb(handle),
+        )
+
+    ok(f"compiled: {manifest.node_count} nodes, {manifest.edge_count} edges, "
+       f"run_id={manifest.run_id}, facts_hash={manifest.facts_hash}")
 
     _report_compile_errors(manifest)
 
@@ -952,11 +988,13 @@ def _auto_import_and_compile(p: dict) -> None:
 
     try:
         provider = _make_provider(config)
-        manifest = compile_graph(
-            raw_root=p["raw"], out_dir=p["out"], schema=schema,
-            provider=provider, cache_path=p["cache"],
-            chunk_lines=config.compile.chunk_lines,
-        )
+        with _progress_ctx(p["raw"], config.compile.chunk_lines) as handle:
+            manifest = compile_graph(
+                raw_root=p["raw"], out_dir=p["out"], schema=schema,
+                provider=provider, cache_path=p["cache"],
+                chunk_lines=config.compile.chunk_lines,
+                on_progress=_progress_cb(handle),
+            )
         _report_compile_errors(manifest, exit_on_total_failure=False)
         pending_dir = p.get("pending")
         resolved = False
@@ -1293,19 +1331,34 @@ def ingest(
 
     provider = _make_provider(config)
 
+    from contextlib import nullcontext
     from lorekeep.agent import ingest_source
+    from lorekeep.output import is_quiet, is_terminal, progress
 
-    try:
-        result = ingest_source(
-            source_path=source_path,
-            raw_root=raw_root,
-            provider=provider,
-            schema=schema,
-            chunk_lines=config.compile.chunk_lines,
-        )
-    except Exception as exc:
-        typer.echo(f"ingest: extraction failed: {exc}")
-        raise typer.Exit(code=1)
+    if not is_quiet() and is_terminal():
+        cm = progress(f"Extracting {source_path.name}", total=None)
+    else:
+        cm = nullcontext(None)
+    with cm as handle:
+        on_progress = None
+        if handle:
+            def _cb(i, total, chunk, _h=handle):
+                if total:
+                    _h.update(total=total)
+                _h.advance()
+            on_progress = _cb
+        try:
+            result = ingest_source(
+                source_path=source_path,
+                raw_root=raw_root,
+                provider=provider,
+                schema=schema,
+                chunk_lines=config.compile.chunk_lines,
+                on_progress=on_progress,
+            )
+        except Exception as exc:
+            typer.echo(f"ingest: extraction failed: {exc}")
+            raise typer.Exit(code=1)
 
     if not result.nodes and not result.edges:
         typer.echo("ingest: no facts extracted from source")
@@ -1639,11 +1692,13 @@ def watch(
                     schema = load_schema(p["schema"])
                     config = load_config(p["config"])
                     provider = _make_provider(config)
-                    dm = compile_graph(
-                        raw_root=raw_dir, out_dir=p["out"], schema=schema,
-                        provider=provider, cache_path=p["cache"],
-                        chunk_lines=config.compile.chunk_lines,
-                    )
+                    with _progress_ctx(raw_dir, config.compile.chunk_lines) as handle:
+                        dm = compile_graph(
+                            raw_root=raw_dir, out_dir=p["out"], schema=schema,
+                            provider=provider, cache_path=p["cache"],
+                            chunk_lines=config.compile.chunk_lines,
+                            on_progress=_progress_cb(handle),
+                        )
                     _report_compile_errors(dm, exit_on_total_failure=False)
                     typer.echo("agent: compile done")
                     compiled = True

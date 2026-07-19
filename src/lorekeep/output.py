@@ -29,6 +29,11 @@ def is_quiet() -> bool:
     return _quiet
 
 
+def is_terminal() -> bool:
+    """Whether stdout is a tty (color + progress bars). False under CliRunner/daemon."""
+    return console.is_terminal
+
+
 # ── status-line helpers ──────────────────────────────────────────────────────
 # The message is escaped so a caller's ``[``/`]`` (e.g. namespaces lists) is
 # never misread as Rich markup. After color-strip the plain text is verbatim,
@@ -61,7 +66,10 @@ def error(msg: str) -> None:
 # ── progress / spinner ───────────────────────────────────────────────────────
 
 class _NullProgress:
-    """No-op handle used when there's no tty (tests, daemon log)."""
+    """No-op handle used when there's no tty (tests, daemon log). Falsy."""
+
+    def __bool__(self) -> bool:
+        return False
 
     def advance(self, n: int = 1) -> None:
         pass
@@ -74,6 +82,9 @@ class _ProgressHandle:
     def __init__(self, bar, task) -> None:
         self._bar = bar
         self._task = task
+
+    def __bool__(self) -> bool:
+        return True
 
     def advance(self, n: int = 1) -> None:
         self._bar.advance(self._task, n)
