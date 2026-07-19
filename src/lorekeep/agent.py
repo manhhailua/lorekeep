@@ -8,6 +8,7 @@ changes (auto-compile and auto-resolve are handled in the CLI layer).
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -179,6 +180,7 @@ def ingest_source(
     provider: LLMProvider,
     schema: Schema,
     chunk_lines: int = 60,
+    on_progress: Callable[[int, int, DocChunk], None] | None = None,
 ) -> IngestResult:
     """Read a source file, chunk it, and extract facts via LLM.
 
@@ -190,6 +192,12 @@ def ingest_source(
     ns = namespace_for(raw_root, source_path)
     rel = str(source_path.relative_to(raw_root))
     lines = source_path.read_text(encoding="utf-8").splitlines()
+
+    # pre-count non-empty blocks for the progress total (cheap; file already read)
+    total = sum(
+        1 for start in range(0, len(lines), chunk_lines)
+        if any(line.strip() for line in lines[start:start + chunk_lines])
+    )
 
     all_nodes: list[dict] = []
     all_edges: list[dict] = []
@@ -206,6 +214,8 @@ def ingest_source(
             text="\n".join(block),
             namespace=ns,
         )
+        if on_progress is not None:
+            on_progress(chunk_count, total, chunk)
         chunk_count += 1
         raw = provider.extract_json(SYSTEM_PROMPT, build_prompt(chunk, schema))
         nodes, edges, _aliases = parse_response(raw, chunk, schema)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from lorekeep.compile.extract import ExtractionCache, extract_chunk
@@ -9,9 +10,12 @@ from lorekeep.compile.ingest import ingest
 from lorekeep.compile.providers import LLMProvider
 from lorekeep.compile.resolve import resolve
 from lorekeep.compile.writer import facts_hash, run_id, write_graph
-from lorekeep.models import Edge, Manifest, Node, Schema, now_iso
+from lorekeep.models import DocChunk, Edge, Manifest, Node, Schema, now_iso
 
 log = logging.getLogger("lorekeep")
+
+# Optional per-chunk progress hook: (index, total, chunk). Default None → silent.
+ProgressCb = Callable[[int, int, DocChunk], None]
 
 
 def compile_graph(
@@ -21,15 +25,19 @@ def compile_graph(
     provider: LLMProvider,
     cache_path: Path,
     chunk_lines: int = 60,
+    on_progress: ProgressCb | None = None,
 ) -> Manifest:
     chunks = ingest(raw_root, chunk_lines=chunk_lines)
     cache = ExtractionCache(cache_path)
+    total = len(chunks)
 
     all_nodes: list[Node] = []
     all_edges: list[Edge] = []
     all_aliases: dict[str, list[str]] = {}
     errors = []
-    for chunk in chunks:
+    for i, chunk in enumerate(chunks):
+        if on_progress is not None:
+            on_progress(i, total, chunk)
         try:
             nodes, edges, aliases = extract_chunk(chunk, schema, provider, cache)
             all_nodes.extend(nodes)
