@@ -17,15 +17,14 @@ The first directory under `raw/` becomes the fact's `ns` (e.g. `backend`, `front
 
 ```bash
 cp .lorekeep/config.yaml.example .lorekeep/config.yaml
-# edit model / api_base as needed
+# edit model as needed (native providers need no api_base)
 ```
 
 For strict privacy, use a local model:
 
 ```yaml
 provider:
-  model: ollama/llama3
-  api_base: http://localhost:11434
+  model: ollama/llama3                      # default http://localhost:11434; set api_base only for a non-default host
 ```
 
 ## 3. Compile

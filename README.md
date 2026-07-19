@@ -198,14 +198,17 @@ Every result is filtered to the caller's namespace. Write tools append to `pendi
 dev marker > XDG):
 ```yaml
 provider:
-  model: openai/qwen-plus                              # {provider}/{model} — litellm routes by prefix
-  api_base: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+  model: dashscope/qwen-plus                           # {provider}/{model} — litellm routes by prefix
   api_key_env: DASHSCOPE_API_KEY                       # env var name (preferred)
   api_key: null                                        # or inline (gitignored config only)
 ns:
   default: [public]
 install_source: pypi                                   # pypi = portable .mcp.json
 ```
+Native providers (`openai`, `anthropic`, `deepseek`, `dashscope`, `gemini`, …)
+need **no** `api_base` — litellm knows their endpoint. Set `api_base` only for a
+custom OpenAI-compatible endpoint (vllm, lm_studio, a proxy/gateway, or Ollama on
+a non-default host).
 API keys never live in committed files — use `api_key_env` (env) or inline
 `api_key` in the gitignored config only. Examples (DashScope / OpenAI / Ollama)
 in [`.lorekeep/config.yaml.example`](.lorekeep/config.yaml.example).

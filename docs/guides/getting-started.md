@@ -106,9 +106,11 @@ provider:
 
 The model string must be `{provider}/{model}` (e.g. `openai/gpt-4o-mini`,
 `anthropic/claude-sonnet-4-20250514`, `deepseek/deepseek-chat`,
-`ollama/llama3`). Native providers (`openai`, `anthropic`, `deepseek`) need no
-`api_base`; OpenAI-compatible endpoints (DashScope, Ollama) set `api_base` and
-use the `openai/` prefix. A bare name like `deepseek-chat` is rejected with a
+`dashscope/qwen-plus`, `ollama/llama3`). Native providers (`openai`,
+`anthropic`, `deepseek`, `dashscope`, `gemini`, …) need **no** `api_base` —
+litellm already knows their endpoint. Set `api_base` only for a custom
+OpenAI-compatible endpoint (vllm, lm_studio, a proxy/gateway, or Ollama on a
+non-default host). A bare name like `deepseek-chat` is rejected with a
 suggestion — `lorekeep doctor` will tell you exactly what's wrong.
 
 Prefer an env var instead? Set `api_key_env: DEEPSEEK_API_KEY` (and

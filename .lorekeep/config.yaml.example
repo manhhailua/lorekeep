@@ -2,16 +2,18 @@
 #
 # The model string MUST be '{provider}/{model}' — litellm routes by the prefix:
 #   openai/gpt-4o-mini, anthropic/claude-sonnet-4-20250514, deepseek/deepseek-chat,
-#   ollama/llama3. Native providers (openai, anthropic, deepseek) need NO api_base.
-#   OpenAI-compatible endpoints (DashScope, Ollama) set api_base AND use the openai/ prefix.
+#   dashscope/qwen-plus, ollama/llama3.
+# Native providers (openai, anthropic, deepseek, dashscope, gemini, ...) need NO
+# api_base — litellm already knows the endpoint. Set api_base ONLY for a custom
+# OpenAI-compatible endpoint (vllm, lm_studio, a proxy/gateway, or Ollama on a
+# non-default host); see Option E.
 #
 # API keys: prefer api_key_env (name of an env var you export). An inline api_key is
 # also accepted since this file is gitignored — but never commit it.
 #
-# Option A: Alibaba ModelStudio / DashScope (international, OpenAI-compatible)
+# Option A: Alibaba ModelStudio / DashScope (native litellm provider — no api_base)
 provider:
-  model: openai/qwen-plus                          # qwen-max | qwen-plus | qwen-turbo
-  api_base: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+  model: dashscope/qwen-plus                        # qwen-max | qwen-plus | qwen-turbo
   api_key_env: DASHSCOPE_API_KEY                   # export DASHSCOPE_API_KEY=...
   temperature: 0.0
 #
@@ -28,10 +30,18 @@ provider:
 #   api_key_env: DEEPSEEK_API_KEY
 #   temperature: 0.0
 #
-# Option D: Ollama (local, strict privacy)
+# Option D: Ollama (local, strict privacy — default http://localhost:11434)
+#   set api_base only if your Ollama runs on a different host/port
 # provider:
 #   model: ollama/llama3
-#   api_base: http://localhost:11434
+#   temperature: 0.0
+#
+# Option E: custom OpenAI-compatible endpoint (vllm / lm_studio / proxy / gateway)
+#   this is the one case api_base is required
+# provider:
+#   model: openai/your-model
+#   api_base: https://your-gateway.example.com/v1
+#   api_key_env: YOUR_GATEWAY_KEY
 #   temperature: 0.0
 compile:
   chunk_lines: 60
