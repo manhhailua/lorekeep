@@ -8,6 +8,7 @@ from typing import Protocol, runtime_checkable
 class LLMProvider(Protocol):
     def extract_json(self, system: str, user: str) -> str: ...
     def complete(self, system: str, user: str) -> str: ...
+    def ping(self) -> str: ...
 
 
 class FakeProvider:
@@ -28,6 +29,12 @@ class FakeProvider:
         if not self._responses:
             raise RuntimeError("FakeProvider: no canned response left")
         return self._responses.pop(0)
+
+    def ping(self) -> str:
+        """Offline connectivity probe. Returns 'OK' without consuming the
+        response queue (so compile tests' canned-response counts stay exact)."""
+        self.calls.append(("ping", "", ""))
+        return "OK"
 
 
 class LiteLLMProvider:
@@ -84,6 +91,17 @@ class LiteLLMProvider:
             ],
         )
         return resp.choices[0].message.content
+
+    def ping(self) -> str:
+        """One-token connectivity probe used by ``lorekeep doctor``.
+
+        Surfaces auth / model / endpoint failures immediately rather than
+        letting them surface as a silent 0-node compile.
+        """
+        return self.complete(
+            system="You are a connectivity probe.",
+            user="Reply with exactly: OK",
+        )
 
 
 def setup_observability(
