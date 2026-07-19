@@ -233,16 +233,43 @@ def compile() -> None:
         _auto_generate_wiki(p["out"], p["wiki"])
 
 
+def _open_in_obsidian(path: Path) -> None:
+    """Open *path* as an Obsidian vault via the ``obsidian://`` URL scheme.
+
+    Non-fatal: if Obsidian (or the platform opener) is missing, warn with the
+    raw path so the user can open it manually. The wiki is already generated.
+    """
+    import subprocess
+    import sys
+    import urllib.parse
+    from lorekeep.output import warn
+    url = "obsidian://open?path=" + urllib.parse.quote(str(path.resolve()), safe="")
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(["open", url], check=False)
+        elif sys.platform.startswith("win"):
+            subprocess.run(["cmd", "/c", "start", "", url], check=False)
+        else:
+            subprocess.run(["xdg-open", url], check=False)
+    except (FileNotFoundError, OSError):
+        warn(f"could not launch Obsidian; open this folder as a vault manually: {path}")
+
+
 @app.command()
-def wiki() -> None:
+def wiki(
+    open: bool = typer.Option(False, "--open", help="Open the wiki in Obsidian after generating."),
+) -> None:
     """Generate Obsidian-compatible wiki from facts.jsonl."""
-    p = resolve_paths()
+    from lorekeep.output import error, ok
     from lorekeep.wiki import generate_wiki
+    p = resolve_paths()
     result = generate_wiki(p["out"], p["wiki"])
     if "error" in result:
-        typer.echo(f"wiki: {result['error']}")
+        error(f"wiki: {result['error']}")
         raise typer.Exit(code=1)
-    typer.echo(f"wiki: {result['pages']} pages written to {p['wiki']}")
+    ok(f"wiki: {result['pages']} pages written to {p['wiki']}")
+    if open:
+        _open_in_obsidian(p["wiki"])
 
 
 @app.command(name="eval", hidden=True)
