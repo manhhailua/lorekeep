@@ -82,6 +82,62 @@ def test_compile_partial_failure_exits_zero(monkeypatch, tmp_path: Path, fixture
     assert "partial" in result.output
 
 
+def test_compile_rejects_bare_model_before_litellm(monkeypatch, tmp_path: Path, fixtures: Path):
+    """Regression for the 2026-07-18 incident: a bare model name must fail fast
+    with a suggestion at compile, not silently produce 0 nodes via litellm."""
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text("provider:\n  model: deepseek-chat\napi_key: sk-test\n")
+    monkeypatch.setenv("LOREKEEP_CONFIG", str(cfg))
+    monkeypatch.setenv("LOREKEEP_RAW", str(tmp_path / "raw"))
+    monkeypatch.setenv("LOREKEEP_OUT", str(tmp_path / "graph"))
+    monkeypatch.setenv("LOREKEEP_CACHE", str(tmp_path / "cache.json"))
+    monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
+    raw = tmp_path / "raw/test/doc.md"
+    raw.parent.mkdir(parents=True)
+    raw.write_text("# Doc\nSome content.\n")
+
+    result = runner.invoke(app, ["compile"])
+    assert result.exit_code != 0
+    # load_config raises ValueError with the suggestion; surface it clearly
+    assert result.exception is not None
+    assert "deepseek/deepseek-chat" in str(result.exception)
+
+
+def test_compile_partial_systemic_errors_surface_all(monkeypatch, tmp_path: Path, fixtures: Path, fake_extraction):
+    """≥3 chunks failing with the SAME error (partial — some nodes produced)
+    must surface every error + a provider-config hint, not a one-line summary."""
+    monkeypatch.setenv("LOREKEEP_RAW", str(tmp_path / "raw"))
+    monkeypatch.setenv("LOREKEEP_OUT", str(tmp_path / "graph"))
+    monkeypatch.setenv("LOREKEEP_CACHE", str(tmp_path / "cache.json"))
+    monkeypatch.setenv("LOREKEEP_SCHEMA", str(fixtures / "schema.json"))
+
+    # 4 chunks: first succeeds (produces nodes), next 3 fail identically.
+    for name in ("ok.md", "bad1.md", "bad2.md", "bad3.md"):
+        (tmp_path / "raw/test" / name).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / "raw/test" / name).write_text(f"# {name}\ncontent.\n")
+
+    class _Systematic(FakeProvider):
+        def __init__(self):
+            super().__init__(responses=[])
+            self._n = 0
+
+        def extract_json(self, system, user):
+            self._n += 1
+            if self._n == 1:
+                return fake_extraction
+            raise RuntimeError("LLM Provider NOT provided")
+
+    monkeypatch.setattr("lorekeep.cli._make_provider", lambda config: _Systematic())
+    monkeypatch.setattr("lorekeep.cli._has_provider", lambda config: True)
+
+    result = runner.invoke(app, ["compile"])
+    assert result.exit_code == 0, result.output  # partial compile is valid
+    out = result.output.lower()
+    assert "same error" in out
+    assert "lorekeep doctor" in out
+    assert out.count("llm provider not provided") >= 3  # every error echoed
+
+
 def test_compile_success_no_error_output(patch_make_provider, monkeypatch, tmp_path: Path, fixtures: Path):
     """When all chunks succeed, no error warning is printed."""
     monkeypatch.setenv("LOREKEEP_RAW", str(tmp_path / "raw"))

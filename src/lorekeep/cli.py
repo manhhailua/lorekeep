@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -14,7 +15,10 @@ from lorekeep.models import now_iso
 from lorekeep.pipeline import compile_graph
 from lorekeep.paths import resolve_paths
 from lorekeep.defaults import DEFAULT_CONFIG_YAML, DEFAULT_SCHEMA
+from lorekeep.providers import validate_model_prefix
 from lorekeep.schema_io import load_schema
+
+log = logging.getLogger("lorekeep")
 
 app = typer.Typer(help="Lorekeep — compile team docs into a temporal knowledge graph.")
 
@@ -43,6 +47,7 @@ def _build_provider(config: Config) -> LiteLLMProvider:
         api_key = os.environ.get(config.provider.api_key_env)
     if not api_key:
         api_key = config.provider.api_key
+    validate_model_prefix(config.provider.model)  # defense-in-depth (load_config already gates)
     return LiteLLMProvider(
         model=config.provider.model,
         api_base=config.provider.api_base,
@@ -127,6 +132,8 @@ def _report_compile_errors(manifest, *, exit_on_total_failure: bool = True) -> N
     errs = manifest.errors or []
     if not errs:
         return
+    for e in errs:
+        log.error("compile error %s:%s: %s", e.path, e.line, e.message)
     total_fail = manifest.node_count == 0 and manifest.chunk_count > 0
     if total_fail:
         typer.echo(
@@ -142,11 +149,32 @@ def _report_compile_errors(manifest, *, exit_on_total_failure: bool = True) -> N
         if exit_on_total_failure:
             raise typer.Exit(code=1)
     else:
-        typer.echo(
-            f"compile: {len(errs)} chunk(s) failed (partial — "
-            f"{manifest.node_count} nodes still produced). See manifest.json.",
-            err=True,
-        )
+        # Systemic-error heuristic: if most chunks failed with the SAME message,
+        # it's almost always a provider config issue (bad model/api_base/api_key)
+        # rather than per-doc content. Surface every identical error + a hint so
+        # the user isn't left with a one-line summary and an empty-looking graph.
+        messages = [e.message for e in errs]
+        distinct = set(messages)
+        systemic = len(errs) >= 3 and (len(distinct) == 1 or max(messages.count(m) for m in distinct) >= 0.8 * len(errs))
+        if systemic:
+            typer.echo(
+                f"compile: {len(errs)} of {manifest.chunk_count} chunk(s) failed "
+                f"with the same error ({manifest.node_count} nodes still produced).",
+                err=True,
+            )
+            for e in errs:
+                typer.echo(f"  {e.path}:{e.line}: {e.message}", err=True)
+            typer.echo(
+                "  hint: identical errors across chunks usually mean a provider "
+                "config issue (model/api_base/api_key). Run 'lorekeep doctor'.",
+                err=True,
+            )
+        else:
+            typer.echo(
+                f"compile: {len(errs)} chunk(s) failed (partial — "
+                f"{manifest.node_count} nodes still produced). See manifest.json.",
+                err=True,
+            )
 
 
 @app.command()
@@ -436,6 +464,13 @@ def config_set(
     else:
         target[final_key] = value
 
+    if key == "provider.model":
+        try:
+            validate_model_prefix(target[final_key])
+        except ValueError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1)
+
     p["config"].write_text(
         yaml.dump(data, default_flow_style=False, sort_keys=False),
         encoding="utf-8",
@@ -472,9 +507,11 @@ def mcp_add(
 
 @app.command()
 def doctor() -> None:
-    """Verify install: graph loads, schema valid, ns resolves, a tool responds."""
+    """Verify install: graph loads, schema valid, ns resolves, a tool responds,
+    and the configured LLM provider is reachable."""
     p = resolve_paths()
     problems = []
+    notes = []
 
     facts_path = p["out"] / "facts.jsonl"
     if not facts_path.exists():
@@ -496,8 +533,15 @@ def doctor() -> None:
         except Exception as exc:
             problems.append(f"schema invalid: {exc}")
 
+    # Load config once; a bare model fails fast here (reported, not crashed).
+    try:
+        config = load_config(p["config"])
+    except ValueError as exc:
+        typer.echo(f"FAIL: provider config: {exc}")
+        raise typer.Exit(code=1)
+
     raw_ns = os.environ.get("LOREKEEP_NS")
-    allowed = [x.strip() for x in raw_ns.split(",")] if raw_ns else load_config(p["config"]).ns.default
+    allowed = [x.strip() for x in raw_ns.split(",")] if raw_ns else config.ns.default
 
     try:
         from lorekeep.mcp_server import configure, list_namespaces
@@ -507,6 +551,27 @@ def doctor() -> None:
         problems.append(f"mcp configure/tool failed: {exc}")
         ns = []
 
+    # Provider connectivity probe — catches the most common breakage (bad
+    # model/api_base/api_key) that a graph/schema check alone misses.
+    if os.environ.get("LOREKEEP_DOCTOR_NO_PING") == "1":
+        notes.append("provider: ping skipped (LOREKEEP_DOCTOR_NO_PING=1)")
+    elif not _has_provider(config):
+        notes.append("provider: skipped (no API key set — compile will skip until you add one)")
+    else:
+        try:
+            _make_provider(config).ping()
+            notes.append(f"provider: ok ({config.provider.model})")
+        except Exception as exc:
+            msg = str(exc).lower()
+            if "401" in msg or "authentication" in msg or "unauthorized" in msg:
+                problems.append("provider: AUTH FAILED (bad API key)")
+            elif "404" in msg or "not found" in msg or "model" in msg and "exist" in msg:
+                problems.append(f"provider: MODEL NOT FOUND ({config.provider.model}) — check the model string")
+            elif "connection" in msg or "timeout" in msg or "unreachable" in msg or "refused" in msg:
+                problems.append("provider: ENDPOINT UNREACHABLE (check api_base / network)")
+            else:
+                problems.append(f"provider: FAILED — {exc}")
+
     if problems:
         typer.echo("FAIL: " + "; ".join(problems))
         raise typer.Exit(code=1)
@@ -515,6 +580,8 @@ def doctor() -> None:
         f"all checks passed: {len(store.node_ids())} nodes, "
         f"{len(store.all_edges())} edges, namespaces={ns}"
     )
+    for note in notes:
+        typer.echo(note)
 
 
 def _is_interactive() -> bool:
@@ -664,7 +731,7 @@ def _interactive_init(p: dict) -> tuple[str, str, str]:
         ns = typer.prompt("Default namespace", default="private")
         name = typer.prompt("Your name", default="")
         bio = typer.prompt("Bio (one-line intro)", default="")
-        _write_config(p, backend="openai", model="gpt-4o-mini",
+        _write_config(p, model="openai/gpt-4o-mini",
                        api_base=None, api_key_env=None, api_key=None, ns=ns)
         return ns, name, bio
 
@@ -722,6 +789,13 @@ def _interactive_init(p: dict) -> tuple[str, str, str]:
             model = typer.prompt("Model name (litellm string)", default="")
         api_base = None
 
+    # Prefix a bare model name with the explicitly-selected provider so the
+    # written config is always a valid litellm string. (Not a guess — the user
+    # picked this provider; only bare names get prefixed.)
+    if "/" not in model:
+        from lorekeep.providers import _normalize_model_name
+        model = _normalize_model_name(model, provider_name)
+
     typer.echo(f"  → {model}\n")
 
     # ── API key (skip for local providers) ─────────────────────────────
@@ -755,20 +829,19 @@ def _interactive_init(p: dict) -> tuple[str, str, str]:
     bio = typer.prompt("Bio (one-line intro)", default="")
 
     _write_config(
-        p, backend="openai", model=model, api_base=api_base,
+        p, model=model, api_base=api_base,
         api_key_env=env_var if not api_key else None,
         api_key=api_key, ns=ns,
     )
     return ns, name, bio
 
 
-def _write_config(p, backend, model, api_base, api_key_env, api_key, ns):
+def _write_config(p, model, api_base, api_key_env, api_key, ns):
     """Write config.yaml from provider selection."""
     import yaml
     install_source = "local" if (Path.cwd() / ".lorekeep").exists() else "pypi"
     config = {
         "provider": {
-            "backend": backend,
             "model": model,
             "api_base": api_base,
             "api_key_env": api_key_env,

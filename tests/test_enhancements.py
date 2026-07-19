@@ -148,6 +148,21 @@ class TestConfigCLI:
         data = yaml.safe_load(config.read_text())
         assert data["provider"]["model"] == "deepseek/deepseek-chat"
 
+    def test_config_set_rejects_bare_model(self, tmp_path, monkeypatch):
+        home = tmp_path / "home"
+        home.mkdir()
+        config = home / "config.yaml"
+        config.write_text("provider:\n  model: openai/gpt-4o\n")
+
+        monkeypatch.setenv("LOREKEEP_HOME", str(home))
+        from lorekeep.cli import app
+        result = runner.invoke(app, ["config", "set", "provider.model", "deepseek-chat"])
+        assert result.exit_code == 1
+        assert "deepseek/deepseek-chat" in result.output  # suggestion surfaced
+        # config not clobbered with the invalid value
+        data = yaml.safe_load(config.read_text())
+        assert data["provider"]["model"] == "openai/gpt-4o"
+
     def test_config_set_nested_new_key(self, tmp_path, monkeypatch):
         home = tmp_path / "home"
         home.mkdir()
