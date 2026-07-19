@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.1](https://github.com/manhhailua/lorekeep/compare/v0.12.0...v0.12.1) (2026-07-19)
+
+
+### Documentation
+
+* **changelog:** expand 0.12.0 with the full PR [#125](https://github.com/manhhailua/lorekeep/issues/125) feature list ([#128](https://github.com/manhhailua/lorekeep/issues/128)) ([47aae23](https://github.com/manhhailua/lorekeep/commit/47aae234e71f06889ad5a92533f006829dce2c5a))
+
 ## [0.12.0](https://github.com/manhhailua/lorekeep/compare/v0.11.5...v0.12.0) (2026-07-19)
 
 
