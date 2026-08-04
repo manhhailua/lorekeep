@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.13.2](https://github.com/manhhailua/lorekeep/compare/v0.13.1...v0.13.2) (2026-08-03)
+
+
+### Bug Fixes
+
+* make retries and wiki publishing resilient ([1648784](https://github.com/manhhailua/lorekeep/commit/1648784a7189568011dbeaa747735e930de128e9))
+* preserve Obsidian vault and harden compile ([b6f4d1a](https://github.com/manhhailua/lorekeep/commit/b6f4d1aa00ffc94079eaeb7b9cc1aa67c43297ab))
+* preserve Obsidian vault and harden compile ([b2e5b12](https://github.com/manhhailua/lorekeep/commit/b2e5b12a127d5299e80bd35ccfe7d9ae7101e206))
+
 ## [0.13.1](https://github.com/manhhailua/lorekeep/compare/v0.13.0...v0.13.1) (2026-07-30)
 
 
