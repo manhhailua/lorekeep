@@ -1,4 +1,6 @@
 """Unit tests for merge_journals confidence gating (auto / flag / quarantine)."""
+from datetime import date
+
 from lorekeep.compile.resolve import merge_journals, JournalMergeResult
 from lorekeep.models import JournalEntry, Node, Edge
 
@@ -153,6 +155,29 @@ def test_replay_does_not_overwrite_fresh_curator_edge_properties():
     }
 
 
+def test_replay_does_not_replace_curator_human_text_with_stale_agent_text():
+    raw = Node(
+        id="svc:new", type="service", ns=("backend",),
+        props={
+            "summary": "Current curator summary.",
+            "description": "Current curator description.",
+        },
+    )
+    entry = _entry(
+        _node_fact(props={
+            "summary": "Longer but stale agent summary that must not win.",
+            "description": "Stale agent description.",
+        }),
+        confidence=0.9,
+        status="merged",
+    )
+
+    result = merge_journals([raw], [], [entry], replay_accepted=True)
+
+    assert result.nodes[0].props["summary"] == "Current curator summary."
+    assert result.nodes[0].props["description"] == "Current curator description."
+
+
 # ── Invalid schema ────────────────────────────────────────────────────────
 
 
@@ -190,6 +215,18 @@ def test_duplicate_edges_deduplicated():
     new_entry = _entry(_edge_fact(), confidence=0.9)
     r = merge_journals([], [existing_edge], [new_entry])
     assert len(r.edges) == 1
+
+
+def test_temporally_distinct_edges_are_not_deduplicated():
+    historical = _edge().model_copy(update={
+        "valid_to": date(2025, 1, 1),
+    })
+    current_fact = _edge_fact()
+    current_entry = _entry(current_fact, confidence=0.9)
+
+    result = merge_journals([], [historical], [current_entry])
+
+    assert len(result.edges) == 2
 
 
 def test_journal_edge_gets_generated_id():

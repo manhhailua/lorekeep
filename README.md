@@ -55,9 +55,10 @@ compile-once + namespace permission + multi-source (agents/devices/software/team
   Runs in the background; MCP server lazy-reloads.
 - **Session-end hooks** — `lorekeep hook` auto-imports agent memory when a
   session ends (Claude / Cursor / Codex / opencode). Wired by `mcp add`.
-- **Obsidian + Tolaria wiki** — auto-generated after every compile/resolve: flat
-  markdown pages with `[[wikilinks]]`, YAML frontmatter (incl. relationship
-  fields), tags. The same `wiki/` folder opens in both Obsidian and Tolaria.
+- **Human-first Obsidian + Tolaria wiki** — compile extracts grounded summaries
+  and relationship explanations once; the deterministic wiki renders a landing
+  dashboard, catalog, readable entity pages, `[[wikilinks]]`, and queryable YAML
+  frontmatter. The same `wiki/` folder opens in both apps.
 - **Subject-aware ontology** — work-context node types (person, role, skill,
   domain, goal, …) + cross-namespace edges (owns, contributes_to, skilled_in)
   weave your personal knowledge into the team graph. The `me` namespace is
@@ -139,7 +140,7 @@ Personal knowledge + team sharing:
 |---|---|
 | `lorekeep profile [--open]` | Show / open your personal profile source (`raw/<ns>/about.md` + `profile.md`) — edit in Obsidian/Tolaria, then `compile`. |
 | `lorekeep contribution` | Suggest team-knowledge gaps: nodes in your personal ns not yet shared with a team ns. |
-| `lorekeep schema upgrade [--dry-run]` | Upgrade the stock ontology v2 schema to v3 with a backup; custom schemas require `--force`. |
+| `lorekeep schema upgrade [--dry-run]` | Upgrade a stock v2/v3 schema to the human-readable v4 contract with a backup; custom schemas require `--force`. |
 
 Steps 1–6 are one-time setup. Step 7 runs in the background for continuous
 updates. Step 8 syncs across machines.

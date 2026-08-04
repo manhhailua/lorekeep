@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from lorekeep.defaults import DEFAULT_SCHEMA, DEFAULT_SCHEMA_V2
+from lorekeep.defaults import DEFAULT_SCHEMA, DEFAULT_SCHEMA_V2, DEFAULT_SCHEMA_V3
 from lorekeep.models import Schema
 
 
@@ -19,13 +19,13 @@ def upgrade_schema(
     dry_run: bool = False,
     force: bool = False,
 ) -> dict:
-    """Upgrade the stock v2 schema to v3 without overwriting custom schemas."""
+    """Upgrade a stock historical schema without overwriting custom schemas."""
     data = json.loads(path.read_text(encoding="utf-8"))
     version = int(data.get("version", 0))
     if version >= DEFAULT_SCHEMA["version"]:
         return {"changed": False, "from": version, "to": version, "custom": False}
 
-    custom = data != DEFAULT_SCHEMA_V2
+    custom = data not in (DEFAULT_SCHEMA_V2, DEFAULT_SCHEMA_V3)
     if custom and not force:
         return {
             "changed": False,

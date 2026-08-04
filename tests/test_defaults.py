@@ -4,9 +4,9 @@ from lorekeep.defaults import DEFAULT_SCHEMA, DEFAULT_CONFIG_YAML
 from lorekeep.config import Config
 
 
-def test_default_schema_is_valid_json_v3():
+def test_default_schema_is_valid_json_v4():
     d = DEFAULT_SCHEMA
-    assert d["version"] == 3
+    assert d["version"] == 4
     assert "service" in d["node_types"]
     assert "person" in d["node_types"]
     assert "domain" in d["node_types"]          # replaced concept
@@ -18,6 +18,14 @@ def test_default_schema_is_valid_json_v3():
     assert "relates_to" in d["edge_types"]
     assert "contributes_to" in d["edge_types"]  # cross-ns bridge
     assert "mentions" not in d["edge_types"]    # weak catch-all removed
+    assert d["common_node_props"] == {
+        "summary": "string", "description": "string",
+    }
+    assert d["common_edge_props"] == {"description": "string"}
+    assert d["node_types"]["person"]["plural"] == "People"
+    assert d["node_types"]["decision"]["display_prop"] == "title"
+    assert d["edge_types"]["depends_on"]["label"] == "Depends on"
+    assert d["edge_types"]["depends_on"]["inverse_label"] == "Depended on by"
     json.dumps(d)  # serializable
 
 

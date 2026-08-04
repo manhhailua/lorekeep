@@ -72,12 +72,18 @@ Fact = Node | Edge
 class TypeSpec(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
     props: dict[str, str] = Field(default_factory=dict)
+    label: str | None = None
+    plural: str | None = None
+    display_prop: str | None = None
 
 
 class EndpointSpec(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
     from_: str | tuple[str, ...] = Field(alias="from")
     to: str | tuple[str, ...]
+    props: dict[str, str] = Field(default_factory=dict)
+    label: str | None = None
+    inverse_label: str | None = None
 
     @staticmethod
     def _types(value: str | tuple[str, ...]) -> tuple[str, ...]:
@@ -95,6 +101,8 @@ class Schema(BaseModel):
     version: int
     node_types: dict[str, TypeSpec]
     edge_types: dict[str, EndpointSpec]
+    common_node_props: dict[str, str] = Field(default_factory=dict)
+    common_edge_props: dict[str, str] = Field(default_factory=dict)
 
     @classmethod
     def load(cls, data: dict[str, Any]) -> "Schema":
@@ -144,6 +152,18 @@ class ReviewItem(BaseModel):
     reason: str
 
 
+class ContentQuality(BaseModel):
+    """Human-readability coverage measured on the compiled graph."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+    node_label_coverage: float = 0.0
+    node_summary_coverage: float = 0.0
+    node_description_coverage: float = 0.0
+    edge_description_coverage: float = 0.0
+    generic_edge_ratio: float = 0.0
+    duplicate_label_count: int = 0
+
+
 class Manifest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     schema_version: int
@@ -160,6 +180,7 @@ class Manifest(BaseModel):
     merged_count: int = 0
     quarantined_count: int = 0
     flagged_count: int = 0
+    content_quality: ContentQuality | None = None
 
     def to_json(self) -> str:
         return json.dumps(self.model_dump(mode="json"), sort_keys=True, indent=2)

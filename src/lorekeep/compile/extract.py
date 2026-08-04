@@ -18,8 +18,20 @@ SYSTEM_PROMPT_BASE = (
     "For every node give id (stable slug prefixed by type, e.g. svc:payments-api), "
     "type, optional props using the preferred keys for that type, and optional "
     "valid_from/valid_to (ISO dates, null = unknown). "
-    "For every edge give type, from (node id), to (node id), optional valid_from/valid_to. "
+    "For every edge give type, from (node id), to (node id), optional props, "
+    "and optional valid_from/valid_to. "
     "aliases maps a canonical name to surface variants. Emit NO text outside the JSON."
+)
+
+HUMAN_READABLE_RULE = (
+    "Human-readable content rule: every node must have a concise name or title "
+    "and a one-sentence props.summary that tells a human what it is and why it "
+    "matters here. Add props.description when the source provides enough detail. "
+    "Every edge must have props.description explaining the concrete reason, "
+    "mechanism, or context for that relationship. Ground all prose in the source; "
+    "do not invent details or repeat generic templates. Write in the same language "
+    "as the source chunk. Keep summary suitable for a one-line catalog and put "
+    "longer or multi-paragraph material in description."
 )
 
 # Altitude rule: decides node vs attribute. Prevents low-altitude tokens
@@ -74,16 +86,25 @@ def build_system_prompt(
     """
     node_types = ", ".join(
         f"{name}("
-        + ", ".join(f"{prop}:{kind}" for prop, kind in spec.props.items())
+        + ", ".join(
+            f"{prop}:{kind}"
+            for prop, kind in {**spec.props, **schema.common_node_props}.items()
+        )
         + ")"
         for name, spec in schema.node_types.items()
     )
     edge_types = ", ".join(
-        f"{k}({_endpoint_label(v.from_)}->{_endpoint_label(v.to)})"
+        f"{k}({_endpoint_label(v.from_)}->{_endpoint_label(v.to)}; props: "
+        + ", ".join(
+            f"{prop}:{kind}"
+            for prop, kind in {**v.props, **schema.common_edge_props}.items()
+        )
+        + ")"
         for k, v in schema.edge_types.items()
     )
     parts = [
         SYSTEM_PROMPT_BASE,
+        HUMAN_READABLE_RULE,
         ALTITUDE_RULE,
         TEMPORAL_RULE,
         f"Allowed node_types and preferred props: {node_types}",
@@ -160,8 +181,9 @@ def parse_response(
             log.debug("dropping node with unknown type %r in %s", ntype, chunk.src)
             continue
         props = dict(n.get("props", {}))
-        if "name" in n and "name" not in props:
-            props["name"] = n["name"]
+        for key in ("name", "title", "summary", "description"):
+            if key in n and key not in props:
+                props[key] = n[key]
         nodes.append(Node(
             id=n["id"],
             type=ntype,
@@ -177,6 +199,9 @@ def parse_response(
         if schema is not None and not schema.is_valid_edge_type(etype):
             log.debug("dropping edge with unknown type %r in %s", etype, chunk.src)
             continue
+        props = dict(e.get("props", {}))
+        if "description" in e and "description" not in props:
+            props["description"] = e["description"]
         edges.append(Edge(
             id="",                      # assigned deterministically in resolve
             type=etype,
@@ -185,6 +210,7 @@ def parse_response(
             ns=(chunk.namespace,),
             valid_from=_parse_date(e.get("valid_from")),
             valid_to=_parse_date(e.get("valid_to")),
+            props=props,
             src=(chunk.src,),
         ))
     aliases = {k: list(v) for k, v in data.get("aliases", {}).items()}

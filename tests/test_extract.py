@@ -42,6 +42,14 @@ def test_system_prompt_has_altitude_rule():
     assert "must NOT become nodes" in s
 
 
+def test_system_prompt_requires_grounded_human_readable_content():
+    s = build_system_prompt(SCHEMA)
+    assert "props.summary" in s
+    assert "Every edge must have props.description" in s
+    assert "same language as the source chunk" in s
+    assert "do not invent details" in s
+
+
 def test_me_namespace_adds_subject_prompt():
     s_me = build_system_prompt(SCHEMA, ns="me")
     s_team = build_system_prompt(SCHEMA, ns="backend")
@@ -93,6 +101,39 @@ def test_parse_response_maps_nodes_and_edges():
     assert edges[0].from_ == "svc:payments-api"
     assert edges[0].valid_to == date(2025, 3, 1)
     assert aliases == {"payments-api": ["payments-api"]}
+
+
+def test_parse_response_preserves_human_fields_and_edge_props():
+    c = make_chunk("Dịch vụ thanh toán phụ thuộc xác thực để kiểm tra token.")
+    raw = json.dumps({
+        "nodes": [{
+            "id": "svc:payments",
+            "type": "service",
+            "title": "Thanh toán",
+            "summary": "Xử lý giao dịch thanh toán.",
+            "description": "Dịch vụ lõi cho luồng thanh toán.",
+        }],
+        "edges": [{
+            "type": "depends_on",
+            "from": "svc:payments",
+            "to": "svc:auth",
+            "description": "Dùng auth để kiểm tra token.",
+            "props": {"criticality": "high"},
+        }],
+        "aliases": {},
+    })
+
+    nodes, edges, _ = parse_response(raw, c)
+
+    assert nodes[0].props == {
+        "title": "Thanh toán",
+        "summary": "Xử lý giao dịch thanh toán.",
+        "description": "Dịch vụ lõi cho luồng thanh toán.",
+    }
+    assert edges[0].props == {
+        "criticality": "high",
+        "description": "Dùng auth để kiểm tra token.",
+    }
 
 
 @pytest.mark.parametrize(

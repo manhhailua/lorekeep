@@ -182,6 +182,31 @@ def _report_compile_errors(manifest, *, exit_on_total_failure: bool = True) -> N
             )
 
 
+def _report_content_quality(manifest) -> None:
+    """Warn about readability gaps without rejecting otherwise valid facts."""
+    quality = manifest.content_quality
+    if quality is None:
+        return
+    issues: list[str] = []
+    if quality.node_summary_coverage < 1.0:
+        issues.append(f"summaries {quality.node_summary_coverage:.0%}")
+    if quality.edge_description_coverage < 1.0:
+        issues.append(
+            f"relationship explanations {quality.edge_description_coverage:.0%}"
+        )
+    if quality.generic_edge_ratio > 0.5:
+        issues.append(f"generic edges {quality.generic_edge_ratio:.0%}")
+    if quality.duplicate_label_count:
+        issues.append(f"duplicate labels {quality.duplicate_label_count}")
+    if issues:
+        from lorekeep.output import warn
+        warn(
+            "compile: content quality needs attention ("
+            + ", ".join(issues)
+            + "). Facts were kept; see manifest.json and wiki/overview.md."
+        )
+
+
 def _progress_ctx(raw_root, chunk_lines):
     """Context manager for a compile progress bar.
 
@@ -226,6 +251,7 @@ def compile() -> None:
        f"run_id={manifest.run_id}, facts_hash={manifest.facts_hash}")
 
     _report_compile_errors(manifest)
+    _report_content_quality(manifest)
 
     pending_dir = p.get("pending")
     resolved = False
@@ -236,7 +262,7 @@ def compile() -> None:
         )
 
     if not resolved:
-        _auto_generate_wiki(p["out"], p["wiki"])
+        _auto_generate_wiki(p["out"], p["wiki"], p.get("schema"))
 
 
 def _open_in_obsidian(path: Path) -> None:
@@ -269,7 +295,8 @@ def wiki(
     from lorekeep.output import error, ok
     from lorekeep.wiki import generate_wiki
     p = resolve_paths()
-    result = generate_wiki(p["out"], p["wiki"])
+    schema = load_schema(p["schema"]) if p["schema"].exists() else None
+    result = generate_wiki(p["out"], p["wiki"], schema=schema)
     if "error" in result:
         error(f"wiki: {result['error']}")
         raise typer.Exit(code=1)
@@ -467,6 +494,7 @@ def resolve(
     from lorekeep.compile.writer import write_graph
     from lorekeep.journal import load_journals, update_journal_status
     from lorekeep.models import Manifest
+    from lorekeep.pipeline import measure_content_quality
 
     facts_path = p["out"] / "facts.jsonl"
     pending = p.get("pending")
@@ -518,6 +546,9 @@ def resolve(
         quarantine=[{"fact": q[0].fact, "reason": q[1]} for q in resolved.quarantined],
         review=[{"fact_id": f[0].fact.get("id", ""), "reason": f[1]}
                 for f in merged.flagged],
+        content_quality=measure_content_quality(
+            resolved.nodes, resolved.edges, schema,
+        ),
     )
     write_graph(p["out"], resolved.nodes, resolved.edges, manifest)
 
@@ -559,7 +590,7 @@ def resolve(
     )
 
     if merged.merge_count > 0 or merged.flagged_count > 0:
-        _auto_generate_wiki(p["out"], p["wiki"])
+        _auto_generate_wiki(p["out"], p["wiki"], p.get("schema"))
 
 
 @app.command()
@@ -592,7 +623,7 @@ def schema_upgrade(
     dry_run: bool = typer.Option(False, "--dry-run", help="Show the upgrade without writing."),
     force: bool = typer.Option(False, "--force", help="Replace a custom older schema after backing it up."),
 ) -> None:
-    """Upgrade the stock v2 ontology to v3, preserving a backup."""
+    """Upgrade a stock ontology schema to the latest version, preserving a backup."""
     from lorekeep.output import info, ok, warn
     from lorekeep.schema_io import upgrade_schema
 
@@ -601,7 +632,7 @@ def schema_upgrade(
     if result["custom"] and not result["changed"]:
         warn(
             "custom schema detected; re-run with --force only after reviewing "
-            "the v2→v3 ontology changes"
+            "the current ontology changes"
         )
         raise typer.Exit(code=2)
     if not result["changed"]:
@@ -1172,6 +1203,7 @@ def _auto_import_and_compile(p: dict) -> None:
                 personal_ns=config.ns.personal_namespace,
             )
         _report_compile_errors(manifest, exit_on_total_failure=False)
+        _report_content_quality(manifest)
         pending_dir = p.get("pending")
         resolved = False
         if pending_dir and pending_dir.exists():
@@ -1180,7 +1212,7 @@ def _auto_import_and_compile(p: dict) -> None:
                 replay_accepted=True,
             )
         if not resolved:
-            _auto_generate_wiki(p["out"], p["wiki"])
+            _auto_generate_wiki(p["out"], p["wiki"], p.get("schema"))
         typer.echo(f"  compiled: {manifest.node_count} nodes, {manifest.edge_count} edges")
     except Exception as exc:
         typer.echo(f"  compile skipped: {exc}")
@@ -1893,6 +1925,7 @@ def watch(
                             personal_ns=config.ns.personal_namespace,
                         )
                     _report_compile_errors(dm, exit_on_total_failure=False)
+                    _report_content_quality(dm)
                     typer.echo("agent: compile done")
                     compiled = True
                 except Exception as exc:
@@ -1999,6 +2032,7 @@ def _do_auto_resolve_unlocked(
         from lorekeep.compile.writer import write_graph
         from lorekeep.journal import load_journals, update_journal_status
         from lorekeep.models import Edge, Manifest, Node
+        from lorekeep.pipeline import measure_content_quality
 
         facts_path = out_dir / "facts.jsonl"
         existing_nodes = []
@@ -2035,6 +2069,10 @@ def _do_auto_resolve_unlocked(
                 merged_count=merged.merge_count,
                 quarantined_count=merged.quarantine_count,
                 flagged_count=merged.flagged_count,
+                content_quality=(
+                    measure_content_quality(resolved.nodes, resolved.edges, schema)
+                    if schema else None
+                ),
             )
             write_graph(out_dir, resolved.nodes, resolved.edges, manifest)
 
@@ -2062,18 +2100,23 @@ def _do_auto_resolve_unlocked(
                        f"{merged.flagged_count} flagged, {merged.quarantine_count} quarantined")
 
             if wiki_dir:
-                _auto_generate_wiki(out_dir, wiki_dir)
+                _auto_generate_wiki(out_dir, wiki_dir, schema_path)
             return True
     except Exception as exc:
         typer.echo(f"agent: resolve error: {exc}")
     return False
 
 
-def _auto_generate_wiki(graph_dir: Path, wiki_dir: Path) -> None:
+def _auto_generate_wiki(
+    graph_dir: Path,
+    wiki_dir: Path,
+    schema_path: Path | None = None,
+) -> None:
     """Regenerate wiki after compile or resolve. Best-effort, never blocks."""
     try:
         from lorekeep.wiki import generate_wiki
-        generate_wiki(graph_dir, wiki_dir)
+        schema = load_schema(schema_path) if schema_path and schema_path.exists() else None
+        generate_wiki(graph_dir, wiki_dir, schema=schema)
     except Exception as exc:
         typer.echo(f"wiki: auto-gen skipped: {exc}")
 

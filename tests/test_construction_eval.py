@@ -9,6 +9,21 @@ def test_load_gold(tmp_path: Path, fixtures: Path):
     assert len(facts) == 6
 
 
+def test_gold_corpus_is_fully_human_readable(fixtures: Path):
+    from lorekeep.models import Edge, Node
+
+    facts = load_gold(fixtures / "gold")
+    nodes = [fact for fact in facts if isinstance(fact, Node)]
+    edges = [fact for fact in facts if isinstance(fact, Edge)]
+
+    assert all(
+        str(node.props.get("name") or node.props.get("title") or "").strip()
+        for node in nodes
+    )
+    assert all(str(node.props.get("summary") or "").strip() for node in nodes)
+    assert all(str(edge.props.get("description") or "").strip() for edge in edges)
+
+
 def test_node_key_uses_type_and_name():
     from lorekeep.models import Node
     n = Node(id="svc:x", type="service", ns=("t/b",), props={"name": "auth"})

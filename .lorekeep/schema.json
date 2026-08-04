@@ -1,42 +1,55 @@
 {
-  "version": 3,
+  "version": 4,
+  "common_node_props": {
+    "summary": "string",
+    "description": "string"
+  },
+  "common_edge_props": {
+    "description": "string"
+  },
   "node_types": {
-    "person": {"props": {"name": "string", "handle": "string", "org": "string"}},
-    "role": {"props": {"name": "string", "domain": "string"}},
-    "skill": {"props": {"name": "string", "domain": "string", "level": "string"}},
-    "domain": {"props": {"name": "string", "description": "string"}},
-    "preference": {"props": {"name": "string", "description": "string"}},
-    "value": {"props": {"name": "string", "description": "string"}},
-    "goal": {"props": {"title": "string", "timeframe": "string", "status": "string"}},
-    "service": {"props": {"name": "string", "lang": "string", "status": "string"}},
-    "project": {"props": {"name": "string", "status": "string", "start_date": "string"}},
-    "decision": {"props": {"title": "string", "status": "string", "decided_on": "string"}},
-    "team": {"props": {"name": "string", "org": "string"}},
-    "document": {"props": {"title": "string", "kind": "string"}}
+    "person": {"props": {"name": "string", "handle": "string", "org": "string"}, "label": "Person", "plural": "People", "display_prop": "name"},
+    "role": {"props": {"name": "string", "domain": "string"}, "label": "Role", "plural": "Roles", "display_prop": "name"},
+    "skill": {"props": {"name": "string", "domain": "string", "level": "string"}, "label": "Skill", "plural": "Skills", "display_prop": "name"},
+    "domain": {"props": {"name": "string", "description": "string"}, "label": "Domain", "plural": "Domains", "display_prop": "name"},
+    "preference": {"props": {"name": "string", "description": "string"}, "label": "Preference", "plural": "Preferences", "display_prop": "name"},
+    "value": {"props": {"name": "string", "description": "string"}, "label": "Value", "plural": "Values", "display_prop": "name"},
+    "goal": {"props": {"title": "string", "timeframe": "string", "status": "string"}, "label": "Goal", "plural": "Goals", "display_prop": "title"},
+    "service": {"props": {"name": "string", "lang": "string", "status": "string"}, "label": "Service", "plural": "Services", "display_prop": "name"},
+    "project": {"props": {"name": "string", "status": "string", "start_date": "string"}, "label": "Project", "plural": "Projects", "display_prop": "name"},
+    "decision": {"props": {"title": "string", "status": "string", "decided_on": "string"}, "label": "Decision", "plural": "Decisions", "display_prop": "title"},
+    "team": {"props": {"name": "string", "org": "string"}, "label": "Team", "plural": "Teams", "display_prop": "name"},
+    "document": {"props": {"title": "string", "kind": "string"}, "label": "Document", "plural": "Documents", "display_prop": "title"}
   },
   "edge_types": {
-    "depends_on": {"from": "service", "to": "service"},
-    "part_of": {"from": "service", "to": "project"},
-    "decided_by": {"from": "decision", "to": ["person", "team"]},
-    "owns": {"from": ["person", "team"], "to": "service"},
-    "contributes_to": {"from": "person", "to": "project"},
-    "works_on": {"from": "person", "to": "project"},
-    "has_role": {"from": "person", "to": "role"},
-    "has_skill": {"from": "person", "to": "skill"},
-    "in_domain": {"from": ["role", "skill"], "to": "domain"},
-    "pursues": {"from": "person", "to": "goal"},
-    "holds_value": {"from": "person", "to": "value"},
-    "member_of": {"from": "person", "to": "team"},
-    "is_a": {"from": "service", "to": "domain"},
-    "collaborates_with": {"from": "person", "to": "person"},
-    "prefers": {"from": "person", "to": "preference"},
+    "depends_on": {"from": "service", "to": "service", "props": {}, "label": "Depends on", "inverse_label": "Depended on by"},
+    "part_of": {"from": "service", "to": "project", "props": {}, "label": "Part of", "inverse_label": "Contains"},
+    "decided_by": {"from": "decision", "to": ["person", "team"], "props": {}, "label": "Decided by", "inverse_label": "Made decision"},
+    "owns": {"from": ["person", "team"], "to": "service", "props": {}, "label": "Owns", "inverse_label": "Owned by"},
+    "contributes_to": {"from": "person", "to": "project", "props": {}, "label": "Contributes to", "inverse_label": "Has contributor"},
+    "works_on": {"from": "person", "to": "project", "props": {}, "label": "Works on", "inverse_label": "Has contributor"},
+    "has_role": {"from": "person", "to": "role", "props": {}, "label": "Has role", "inverse_label": "Role held by"},
+    "has_skill": {"from": "person", "to": "skill", "props": {}, "label": "Has skill", "inverse_label": "Skill of"},
+    "in_domain": {"from": ["role", "skill"], "to": "domain", "props": {}, "label": "In domain", "inverse_label": "Includes"},
+    "pursues": {"from": "person", "to": "goal", "props": {}, "label": "Pursues", "inverse_label": "Pursued by"},
+    "holds_value": {"from": "person", "to": "value", "props": {}, "label": "Holds value", "inverse_label": "Held by"},
+    "member_of": {"from": "person", "to": "team", "props": {}, "label": "Member of", "inverse_label": "Has member"},
+    "is_a": {"from": "service", "to": "domain", "props": {}, "label": "Is a", "inverse_label": "Includes"},
+    "collaborates_with": {"from": "person", "to": "person", "props": {}, "label": "Collaborates with", "inverse_label": "Collaborates with"},
+    "prefers": {"from": "person", "to": "preference", "props": {}, "label": "Prefers", "inverse_label": "Preferred by"},
     "relates_to": {
       "from": ["person", "service", "project", "decision", "team", "domain", "skill", "role", "goal", "document"],
-      "to": ["person", "service", "project", "decision", "team", "domain", "skill", "role", "goal", "document"]
+      "to": ["person", "service", "project", "decision", "team", "domain", "skill", "role", "goal", "document"],
+      "props": {},
+      "label": "Relates to",
+      "inverse_label": "Relates to"
     },
     "documents": {
       "from": "document",
-      "to": ["service", "project", "decision", "domain"]
+      "to": ["service", "project", "decision", "domain"],
+      "props": {},
+      "label": "Documents",
+      "inverse_label": "Documented by"
     }
   }
 }

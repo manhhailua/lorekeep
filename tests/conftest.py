@@ -13,16 +13,22 @@ def fixtures() -> Path:
 CANNED_EXTRACTION = json.dumps({
     "nodes": [
         {"id": "svc:payments-api", "type": "service", "name": "payments-api",
+         "summary": "Main API for payment requests.",
          "props": {"lang": "go"}, "valid_from": "2024-01-15"},
-        {"id": "svc:auth", "type": "service", "name": "auth"},
-        {"id": "team:backend", "type": "team", "name": "team-backend"},
+        {"id": "svc:auth", "type": "service", "name": "auth",
+         "summary": "Validates service credentials."},
+        {"id": "team:backend", "type": "team", "name": "team-backend",
+         "summary": "Backend engineering team."},
         {"id": "dec:adr-007", "type": "decision",
+         "summary": "Adopts internal request signing.",
          "props": {"title": "payments-api adopts internal signing"}},
     ],
     "edges": [
         {"type": "depends_on", "from": "svc:payments-api", "to": "svc:auth",
+         "description": "Uses auth to validate incoming credentials.",
          "valid_from": "2024-01-15", "valid_to": "2025-03-01"},
-        {"type": "decided_by", "from": "dec:adr-007", "to": "team:backend"},
+        {"type": "decided_by", "from": "dec:adr-007", "to": "team:backend",
+         "description": "The backend team approved the signing decision."},
     ],
     "aliases": {},
 })

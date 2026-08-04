@@ -171,3 +171,36 @@ def test_compile_success_no_error_output(patch_make_provider, monkeypatch, tmp_p
     result = runner.invoke(app, ["compile"])
     assert result.exit_code == 0, result.output
     assert "failed" not in result.output.lower()
+
+
+def test_v4_compile_wiki_check_end_to_end(
+    patch_make_provider, monkeypatch, tmp_path: Path,
+):
+    """Stock v4 compile produces enriched facts and a readable, valid vault."""
+    from lorekeep.defaults import DEFAULT_CONFIG_YAML, DEFAULT_SCHEMA
+
+    home = tmp_path / "home"
+    (home / "raw" / "backend").mkdir(parents=True)
+    (home / "raw" / "backend" / "payments.md").write_text(
+        "# Payments\n\npayments-api depends on auth for credential validation.\n"
+    )
+    (home / "schema.json").write_text(json.dumps(DEFAULT_SCHEMA))
+    (home / "config.yaml").write_text(DEFAULT_CONFIG_YAML)
+    monkeypatch.setenv("LOREKEEP_HOME", str(home))
+
+    compiled = runner.invoke(app, ["compile"])
+    checked = runner.invoke(app, ["check"])
+    regenerated = runner.invoke(app, ["wiki"])
+
+    assert compiled.exit_code == 0, compiled.output
+    assert checked.exit_code == 0, checked.output
+    assert regenerated.exit_code == 0, regenerated.output
+    manifest = json.loads((home / "graph" / "manifest.json").read_text())
+    assert manifest["schema_version"] == 4
+    assert manifest["content_quality"]["node_summary_coverage"] == 1.0
+    assert manifest["content_quality"]["edge_description_coverage"] == 1.0
+    page = (home / "wiki" / "svc-payments-api.md").read_text()
+    assert "> Main API for payment requests." in page
+    assert "## Connections" in page
+    assert "Uses auth to validate incoming credentials." in page
+    assert (home / "wiki" / "catalog.md").exists()

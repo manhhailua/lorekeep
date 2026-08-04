@@ -9,7 +9,8 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from lorekeep.models import Edge, Manifest, Node
+from lorekeep.defaults import DEFAULT_SCHEMA
+from lorekeep.models import ContentQuality, Edge, Manifest, Node, Schema
 from lorekeep.wiki import _slug, generate_wiki
 
 runner = CliRunner()
@@ -131,7 +132,8 @@ class TestGenerateWiki:
         assert (wiki_dir / "index.md").exists()
         assert result["nodes"] == 4
         assert result["edges"] == 2
-        assert result["pages"] == 7  # 4 entity pages + index + overview + log
+        assert result["pages"] == 8  # 4 entity pages + index + catalog + overview + log
+        assert (wiki_dir / "catalog.md").exists()
 
     def test_generates_overview(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
@@ -167,36 +169,38 @@ class TestGenerateWiki:
         page = (wiki_dir / "svc-payments-api.md").read_text()
         assert "# payments-api" in page
 
-    def test_entity_props_table(self, graph_dir, wiki_dir):
+    def test_entity_at_a_glance(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
         page = (wiki_dir / "svc-payments-api.md").read_text()
-        assert "## Properties" in page
-        assert "| name | payments-api |" in page
-        assert "| lang | go |" in page
+        assert "## At a glance" in page
+        assert "- **Type:** Service" in page
+        assert "- **Lang:** go" in page
+        assert "| Key | Value |" not in page
 
     def test_entity_outgoing_relationships(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
         page = (wiki_dir / "svc-payments-api.md").read_text()
-        assert "## Relationships" in page
-        assert "depends_on" in page
-        assert "[[svc-auth]]" in page
+        assert "## Connections" in page
+        assert "### Depends on" in page
+        assert "[[svc-auth|auth]]" in page
+        assert "internal auth" in page
         assert "2024-01-15" in page
 
     def test_entity_incoming_relationships(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
         page = (wiki_dir / "svc-auth.md").read_text()
-        assert "[[svc-payments-api]]" in page
+        assert "[[svc-payments-api|payments-api]]" in page
 
     def test_relationship_rows_preserve_edge_fact_metadata(self, graph_dir, wiki_dir):
         """A human can audit a rendered relationship back to its edge fact."""
         generate_wiki(graph_dir, wiki_dir)
         source_page = (wiki_dir / "svc-payments-api.md").read_text()
         target_page = (wiki_dir / "svc-auth.md").read_text()
-        assert "| [[svc-auth]] | auth |" in source_page
-        assert "| [[svc-payments-api]] | payments-api |" in target_page
+        assert "- [[svc-auth|auth]] — internal auth" in source_page
+        assert "- [[svc-payments-api|payments-api]] — internal auth" in target_page
         for page in (source_page, target_page):
-            assert "| Entity | Label | Fact ID | Namespaces | Validity | Sources | Properties |" in page
-            assert "<code>e_dep_1</code>" in page
+            assert "### Relationship facts" in page
+            assert "`e_dep_1`" in page
             assert '["backend"]' in page
             assert "raw/backend/payments.md:6" in page
             assert "internal auth" in page
@@ -220,10 +224,10 @@ class TestGenerateWiki:
         assert "# Ship v2" in (wiki / "goal-ship.md").read_text()
         assert "# Adopt v2" in (wiki / "dec-adr-1.md").read_text()
         assert "# Design brief" in (wiki / "doc-brief.md").read_text()
-        index = (wiki / "index.md").read_text()
-        assert "[[goal-ship|Ship v2]]" in index
-        assert "[[dec-adr-1|Adopt v2]]" in index
-        assert "[[doc-brief|Design brief]]" in index
+        catalog = (wiki / "catalog.md").read_text()
+        assert "[[goal-ship|Ship v2]]" in catalog
+        assert "[[dec-adr-1|Adopt v2]]" in catalog
+        assert "[[doc-brief|Design brief]]" in catalog
         import yaml
         frontmatter = yaml.safe_load(
             (wiki / "goal-ship.md").read_text().split("---")[1]
@@ -262,14 +266,14 @@ class TestGenerateWiki:
         assert "## Timeline" in page
         assert "Valid from" in page
 
-    def test_index_groups_by_type(self, graph_dir, wiki_dir):
+    def test_catalog_groups_by_type(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
-        index = (wiki_dir / "index.md").read_text()
-        assert "## Services" in index
-        assert "## Teams" in index
-        assert "## Decisions" in index
-        assert "[[svc-payments-api|payments-api]]" in index
-        assert "[[team-backend|team-backend]]" in index
+        catalog = (wiki_dir / "catalog.md").read_text()
+        assert "## Services" in catalog
+        assert "## Teams" in catalog
+        assert "## Decisions" in catalog
+        assert "[[svc-payments-api|payments-api]]" in catalog
+        assert "[[team-backend|team-backend]]" in catalog
 
     def test_log_appended(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
@@ -458,6 +462,17 @@ class TestGenerateWiki:
 
 
 class TestRichEntityProjection:
+    def test_short_legacy_description_is_not_repeated_as_about(self, tmp_path):
+        node = Node(
+            id="svc:legacy", type="service", ns=("team",),
+            props={"name": "Legacy", "description": "One-line service description."},
+        )
+        wiki = _build_wiki(tmp_path, [node])
+        body = (wiki / "svc-legacy.md").read_text().split("---", 2)[2]
+
+        assert body.count("One-line service description.") == 1
+        assert "## About" not in body
+
     def test_description_is_readable_and_preserves_paragraphs(self, tmp_path):
         description = (
             "Tóm tắt miền AI.\n\n"
@@ -472,7 +487,7 @@ class TestRichEntityProjection:
         wiki = _build_wiki(tmp_path, [node])
         page = (wiki / "domain-ai.md").read_text()
 
-        assert f"## Description\n\n{description}" in page
+        assert f"## About\n\n{description}" in page
         assert "| description |" not in page
 
         import yaml
@@ -481,7 +496,7 @@ class TestRichEntityProjection:
         assert frontmatter["description"] == description
         assert frontmatter["props"] == node.props
 
-        index = (wiki / "index.md").read_text()
+        index = (wiki / "catalog.md").read_text()
         assert (
             "[[domain-ai|AI]] — Tóm tắt miền AI. "
             "Giữ **Markdown**, Unicode và dấu | trong nội dung."
@@ -626,10 +641,10 @@ class TestRichRelationships:
         source_page = (wiki / "svc-source.md").read_text()
         target_page = (wiki / "dec-target.md").read_text()
 
-        assert "| [[dec-target]] | Target decision |" in source_page
-        assert "| [[svc-source]] | Source service |" in target_page
+        assert "[[dec-target|Target decision]] — first" in source_page
+        assert "[[svc-source|Source service]] — first" in target_page
         for edge in edges:
-            marker = f"<code>{edge.id}</code>"
+            marker = f"`{edge.id}`"
             assert source_page.count(marker) == 1
             assert target_page.count(marker) == 1
             assert edge.src[0] in source_page
@@ -642,6 +657,106 @@ class TestRichRelationships:
         assert frontmatter["relates_to"] == ["[[dec-target]]"]
 
 
+class TestHumanReadableProjection:
+    def test_entity_page_is_human_first_and_uses_schema_relation_labels(self, tmp_path):
+        from lorekeep.compile.writer import write_graph
+
+        source = Node(
+            id="svc:payments", type="service", ns=("team",),
+            props={
+                "name": "Payments",
+                "summary": "Xử lý yêu cầu thanh toán của khách hàng.",
+                "description": "Dịch vụ lõi của luồng checkout.",
+                "status": "active",
+                "lang": "Go",
+            },
+            src=("team/payments.md:1",),
+        )
+        target = Node(
+            id="svc:auth", type="service", ns=("team",),
+            props={"name": "Auth", "summary": "Xác thực danh tính dịch vụ."},
+        )
+        edge = Edge(
+            id="e_depends_on_0001", type="depends_on",
+            from_=source.id, to=target.id, ns=("team",),
+            props={"description": "Dùng để xác thực token trước khi thu tiền."},
+            src=("team/payments.md:4",),
+        )
+        graph = tmp_path / "graph"
+        write_graph(graph, [source, target], [edge], Manifest(
+            schema_version=4, chunk_count=1, node_count=2, edge_count=1,
+            run_id="human", facts_hash="hash",
+        ))
+        schema = Schema.load(DEFAULT_SCHEMA)
+        wiki = tmp_path / "wiki"
+
+        generate_wiki(graph, wiki, schema=schema)
+
+        page = (wiki / "svc-payments.md").read_text()
+        assert page.index("# Payments") < page.index("> Xử lý yêu cầu")
+        assert page.index("> Xử lý yêu cầu") < page.index("## About")
+        assert page.index("## About") < page.index("## At a glance")
+        assert page.index("## At a glance") < page.index("## Connections")
+        assert page.index("## Connections") < page.index("## Sources")
+        assert page.index("## Sources") < page.index("## Technical details")
+        assert "### Depends on" in page
+        assert (
+            "- [[svc-auth|Auth]] — Dùng để xác thực token trước khi thu tiền."
+            in page
+        )
+        assert "| Entity | Label | Fact ID |" not in page
+
+        inverse = (wiki / "svc-auth.md").read_text()
+        assert "### Depended on by" in inverse
+
+    def test_landing_catalog_and_stale_schema_warning(self, tmp_path):
+        from lorekeep.compile.writer import write_graph
+
+        nodes = [
+            Node(
+                id="goal:ship", type="goal", ns=("me",),
+                props={"title": "Ship ontology v2", "summary": "Hoàn thiện ontology.", "status": "active"},
+            ),
+            Node(
+                id="person:manh", type="person", ns=("me",),
+                props={"name": "Mạnh", "summary": "Người duy trì Lorekeep."},
+            ),
+        ]
+        graph = tmp_path / "graph"
+        write_graph(graph, nodes, [], Manifest(
+            schema_version=3, chunk_count=1, node_count=2, edge_count=0,
+            run_id="stale", facts_hash="hash",
+            content_quality=ContentQuality(
+                node_label_coverage=1.0,
+                node_summary_coverage=1.0,
+                node_description_coverage=0.0,
+                edge_description_coverage=1.0,
+            ),
+        ))
+        wiki = tmp_path / "wiki"
+
+        generate_wiki(graph, wiki, schema=Schema.load(DEFAULT_SCHEMA))
+
+        index = (wiki / "index.md").read_text()
+        catalog = (wiki / "catalog.md").read_text()
+        assert "## Goals and projects" in index
+        assert "## People and teams" in index
+        assert "Graph schema is out of date" in index
+        assert "schema v3" in index and "schema is v4" in index
+        assert "## Goals" in catalog
+        assert "## People" in catalog
+        assert "[[person-manh|Mạnh]] — Người duy trì Lorekeep." in catalog
+
+    def test_legacy_fact_gets_truthful_structural_fallback(self, tmp_path):
+        node = Node(id="domain:legacy", type="domain", ns=("team",), props={})
+        wiki = _build_wiki(tmp_path, [node])
+
+        page = (wiki / "domain-legacy.md").read_text()
+
+        assert "> domain:legacy — Domain." in page
+        assert "## At a glance" in page
+
+
 class TestDeterminism:
     def test_entity_pages_byte_identical(self, graph_dir, wiki_dir, tmp_path):
         """Re-generating unchanged facts yields identical pages (except log)."""
@@ -650,11 +765,11 @@ class TestDeterminism:
         generate_wiki(graph_dir, dir_a)
         generate_wiki(graph_dir, dir_b)
 
-        for f in ("index.md", "overview.md"):
+        for f in ("index.md", "catalog.md", "overview.md"):
             assert (dir_a / f).read_text() == (dir_b / f).read_text()
 
         for ent in dir_a.glob("*.md"):
-            if ent.name in ("index.md", "overview.md", "log.md"):
+            if ent.name in ("index.md", "catalog.md", "overview.md", "log.md"):
                 continue
             rel = ent.relative_to(dir_a)
             assert (dir_b / rel).read_text() == ent.read_text(), f"diff in {rel}"
@@ -662,7 +777,7 @@ class TestDeterminism:
     def test_sorted_output(self, graph_dir, wiki_dir):
         """Entity pages and index entries are sorted for deterministic output."""
         generate_wiki(graph_dir, wiki_dir)
-        index = (wiki_dir / "index.md").read_text()
+        index = (wiki_dir / "catalog.md").read_text()
         svc_pos = index.find("[[svc-auth|auth]]")
         svc2_pos = index.find("[[svc-payments-api|payments-api]]")
         assert svc_pos < svc2_pos  # auth before payments-api (alphabetical)
@@ -843,10 +958,10 @@ class TestSyncInvariant:
             to_pg = next(to_page, None)
             assert from_pg, f"source page {from_slug} missing"
             assert to_pg, f"target page {to_slug} missing"
-            assert f"[[{to_slug}]]" in from_pg.read_text(), \
-                f"edge {d['id']}: [[{to_slug}]] missing on source page"
-            assert f"[[{from_slug}]]" in to_pg.read_text(), \
-                f"edge {d['id']}: [[{from_slug}]] missing on target page"
+            assert f"[[{to_slug}" in from_pg.read_text(), \
+                f"edge {d['id']}: [[{to_slug}...]] missing on source page"
+            assert f"[[{from_slug}" in to_pg.read_text(), \
+                f"edge {d['id']}: [[{from_slug}...]] missing on target page"
 
     def test_every_edge_metadata_is_visible_on_both_endpoints(self, graph_dir, wiki_dir):
         generate_wiki(graph_dir, wiki_dir)
@@ -860,7 +975,7 @@ class TestSyncInvariant:
             ]
             for page in pages:
                 text = page.read_text()
-                assert f"<code>{fact['id']}</code>" in text
+                assert f"`{fact['id']}`" in text
                 assert json.dumps(fact["ns"]) in text
                 for source in fact["src"]:
                     assert source in text
@@ -949,6 +1064,7 @@ class TestEmptyGraph:
         assert result["nodes"] == 0
         assert result["edges"] == 0
         assert (wiki / "index.md").exists()
+        assert (wiki / "catalog.md").exists()
         assert (wiki / "overview.md").exists()
         assert (wiki / "log.md").exists()
 
@@ -968,7 +1084,7 @@ class TestPropsSpecialChars:
         wiki = tmp_path / "wiki"
         generate_wiki(graph, wiki)
         page = (wiki / "svc-test.md").read_text()
-        assert "a \\| b" in page
+        assert "a | b" in page
 
     def test_newline_in_prop_value(self, tmp_path):
         node = Node(

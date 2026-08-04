@@ -9,6 +9,7 @@ the existing graph with priority: raw/ > import > agent-propose.
 """
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -43,16 +44,45 @@ def _build_alias_map(
 ) -> dict[str, str]:
     """Return alias_id -> canonical_id with deterministic normalized ids."""
     alias_map: dict[str, str] = {}
-    # 1) by name: group nodes whose props.name matches an alias group's canonical
+    # 1) by display name: include the canonical name itself as well as variants.
+    #    Prefer the node whose label is the canonical name, and never merge equal
+    #    labels across different ontology types.
     if name_aliases:
-        name_to_canonical: dict[str, str] = {}
-        for nd in nodes:
-            nm = nd.props.get("name")
-            if not nm:
-                continue
-            for canonical_name, variants in name_aliases.items():
-                if nm in variants:
-                    canon = name_to_canonical.setdefault(canonical_name, nd.id)
+        for canonical_name, variants in sorted(name_aliases.items()):
+            canonical_key = _normalize_text(canonical_name).casefold()
+            surface_keys = {
+                _normalize_text(value).casefold()
+                for value in (canonical_name, *variants)
+                if isinstance(value, str) and value.strip()
+            }
+            by_type: dict[str, list[Node]] = {}
+            for nd in nodes:
+                label = nd.props.get("name") or nd.props.get("title")
+                if (
+                    isinstance(label, str)
+                    and _normalize_text(label).casefold() in surface_keys
+                ):
+                    by_type.setdefault(nd.type, []).append(nd)
+            for matches in by_type.values():
+                exact = [
+                    nd for nd in matches
+                    if _normalize_text(
+                        str(nd.props.get("name") or nd.props.get("title") or "")
+                    ).casefold() == canonical_key
+                ]
+                candidates = exact or matches
+                canonical_slug = re.sub(
+                    r"[-_\s]+", "-", canonical_key,
+                )
+                canon = min(
+                    candidates,
+                    key=lambda nd: (
+                        not _normalize_id(nd.id).endswith(f":{canonical_slug}"),
+                        _normalize_id(nd.id),
+                        nd.id,
+                    ),
+                ).id
+                for nd in matches:
                     if nd.id != canon:
                         alias_map[nd.id] = canon
     # 2) auto-merge by normalized id (case/separator variants; diacritics kept).
@@ -66,6 +96,82 @@ def _build_alias_map(
     if explicit_map:
         alias_map.update(explicit_map)
     return alias_map
+
+
+def _normalize_text(value: str) -> str:
+    """Collapse prose whitespace while preserving paragraph boundaries."""
+    paragraphs = [
+        " ".join(part.split())
+        for part in re.split(r"\n\s*\n", value.strip())
+        if part.strip()
+    ]
+    return "\n\n".join(paragraphs)
+
+
+def _richer_summary(left: object, right: object) -> object:
+    """Choose the most informative summary with an order-independent tie-break."""
+    if not isinstance(left, str) or not left.strip():
+        return _normalize_text(right) if isinstance(right, str) else right
+    if not isinstance(right, str) or not right.strip():
+        return _normalize_text(left)
+    choices = (_normalize_text(left), _normalize_text(right))
+    return max(
+        choices,
+        key=lambda text: (len(set(text.casefold().split())), len(text), text.casefold()),
+    )
+
+
+def _merge_descriptions(left: object, right: object) -> object:
+    """Combine grounded prose without retaining exact or contained repeats."""
+    if not isinstance(left, str) or not left.strip():
+        return _normalize_text(right) if isinstance(right, str) else right
+    if not isinstance(right, str) or not right.strip():
+        return _normalize_text(left)
+
+    paragraphs: list[str] = []
+    for value in (left, right):
+        for paragraph in _normalize_text(value).split("\n\n"):
+            folded = paragraph.casefold()
+            if any(folded in existing.casefold() for existing in paragraphs):
+                continue
+            containing = [
+                index for index, existing in enumerate(paragraphs)
+                if existing.casefold() in folded
+            ]
+            if containing:
+                first = containing[0]
+                paragraphs = [
+                    existing for index, existing in enumerate(paragraphs)
+                    if index not in containing
+                ]
+                paragraphs.insert(first, paragraph)
+            else:
+                paragraphs.append(paragraph)
+    return "\n\n".join(paragraphs)
+
+
+def _merge_props(
+    base: dict,
+    incoming: dict,
+    *,
+    prefer_existing: bool = False,
+) -> dict:
+    """Merge fact properties while treating human prose as durable content."""
+    merged = dict(base)
+    for key, value in incoming.items():
+        if prefer_existing and key in merged:
+            continue
+        if key == "summary" and key in merged:
+            merged[key] = _richer_summary(merged[key], value)
+        elif key == "description" and key in merged:
+            merged[key] = _merge_descriptions(merged[key], value)
+        elif not prefer_existing or key not in merged:
+            merged[key] = value
+    return merged
+
+
+def _stable_union(*values: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(sorted({item for group in values for item in group}))
 
 
 def _canonical(node_id: str, alias_map: dict[str, str]) -> str:
@@ -101,13 +207,22 @@ def resolve(
 
     # collapse nodes
     canon_nodes: dict[str, Node] = {}
-    for nd in nodes:
+    node_inputs = sorted(
+        nodes,
+        key=lambda nd: (
+            _canonical(nd.id, alias_map),
+            nd.src,
+            nd.id,
+            json.dumps(nd.props, sort_keys=True, ensure_ascii=False, default=str),
+        ),
+    )
+    for nd in node_inputs:
         cid = _canonical(nd.id, alias_map)
         if cid in canon_nodes:
             base = canon_nodes[cid]
-            merged_props = {**base.props, **nd.props}
-            merged_src = tuple(dict.fromkeys(base.src + nd.src))
-            merged_ns = tuple(dict.fromkeys(base.ns + nd.ns))
+            merged_props = _merge_props(base.props, nd.props)
+            merged_src = _stable_union(base.src, nd.src)
+            merged_ns = _stable_union(base.ns, nd.ns)
             canon_nodes[cid] = base.model_copy(
                 update={"props": merged_props, "src": merged_src, "ns": merged_ns}
             )
@@ -116,13 +231,25 @@ def resolve(
             # dict key can never diverge (covers explicit_map to a non-node id)
             canon_nodes[cid] = nd if nd.id == cid else nd.model_copy(update={"id": cid})
 
-    out_nodes = list(canon_nodes.values())
+    out_nodes = [canon_nodes[node_id] for node_id in sorted(canon_nodes)]
     node_ids = set(canon_nodes.keys())
 
     # rewrite + validate edges
-    out_edges: list[Edge] = []
-    counter = 0
-    for ed in sorted(edges, key=lambda e: (e.type, e.from_, e.to, e.id)):
+    edge_groups: dict[tuple[str, str, str, str, str], Edge] = {}
+    edge_inputs = sorted(
+        edges,
+        key=lambda edge: (
+            edge.type,
+            _canonical(edge.from_, alias_map),
+            _canonical(edge.to, alias_map),
+            edge.valid_from.isoformat() if edge.valid_from else "",
+            edge.valid_to.isoformat() if edge.valid_to else "",
+            edge.src,
+            json.dumps(edge.props, sort_keys=True, ensure_ascii=False, default=str),
+            edge.id,
+        ),
+    )
+    for ed in edge_inputs:
         f = _canonical(ed.from_, alias_map)
         t = _canonical(ed.to, alias_map)
         if f not in node_ids or t not in node_ids:
@@ -143,12 +270,28 @@ def resolve(
                     f"({from_type}->{to_type})",
                 ))
                 continue
-        counter += 1
-        out_edges.append(ed.model_copy(update={
-            "id": f"e_{ed.type}_{counter:04d}",
-            **{"from_": f},
-            "to": t,
-        }))
+        key = (
+            ed.type,
+            f,
+            t,
+            ed.valid_from.isoformat() if ed.valid_from else "",
+            ed.valid_to.isoformat() if ed.valid_to else "",
+        )
+        normalized = ed.model_copy(update={"from_": f, "to": t})
+        if key in edge_groups:
+            base = edge_groups[key]
+            edge_groups[key] = base.model_copy(update={
+                "props": _merge_props(base.props, normalized.props),
+                "src": _stable_union(base.src, normalized.src),
+                "ns": _stable_union(base.ns, normalized.ns),
+            })
+        else:
+            edge_groups[key] = normalized
+
+    out_edges = [
+        edge_groups[key].model_copy(update={"id": f"e_{key[0]}_{counter:04d}"})
+        for counter, key in enumerate(sorted(edge_groups), start=1)
+    ]
 
     return ResolveResult(
         nodes=out_nodes,
@@ -245,13 +388,11 @@ def merge_journals(
         if fact.kind == "node":
             if fact.id in nodes_by_id:
                 base = nodes_by_id[fact.id]
-                merged_props = (
-                    {**fact.props, **base.props}
-                    if replaying
-                    else {**base.props, **fact.props}
+                merged_props = _merge_props(
+                    base.props, fact.props, prefer_existing=replaying,
                 )
-                merged_src = tuple(dict.fromkeys(base.src + fact.src))
-                merged_ns = tuple(dict.fromkeys(base.ns + fact.ns))
+                merged_src = _stable_union(base.src, fact.src)
+                merged_ns = _stable_union(base.ns, fact.ns)
                 nodes_by_id[fact.id] = base.model_copy(
                     update={"props": merged_props, "src": merged_src, "ns": merged_ns}
                 )
@@ -270,20 +411,24 @@ def merge_journals(
     result.nodes = list(nodes_by_id.values())
 
     # Deduplicate + ID-regenerate edges (journal edges have empty id)
-    edge_by_key: dict[tuple[str, str, str], Edge] = {}
+    edge_by_key: dict[tuple[str, str, str, str, str], Edge] = {}
     counter = 0
     edge_inputs = [(edge, False) for edge in existing_edges] + new_edges
     for e, replaying in edge_inputs:
-        key = (e.from_, e.to, e.type)
+        key = (
+            e.from_,
+            e.to,
+            e.type,
+            e.valid_from.isoformat() if e.valid_from else "",
+            e.valid_to.isoformat() if e.valid_to else "",
+        )
         if key in edge_by_key:
             # Merge props and src for duplicate edges
             existing = edge_by_key[key]
-            merged_props = (
-                {**e.props, **existing.props}
-                if replaying
-                else {**existing.props, **e.props}
+            merged_props = _merge_props(
+                existing.props, e.props, prefer_existing=replaying,
             )
-            merged_src = tuple(dict.fromkeys(existing.src + e.src))
+            merged_src = _stable_union(existing.src, e.src)
             edge_by_key[key] = existing.model_copy(
                 update={"props": merged_props, "src": merged_src}
             )

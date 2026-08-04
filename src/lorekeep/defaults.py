@@ -28,7 +28,7 @@ DEFAULT_SCHEMA_V2 = {
     },
 }
 
-DEFAULT_SCHEMA = {
+DEFAULT_SCHEMA_V3 = {
     # Ontology v2 (schema_version 3): work-context types bridging personal (me)
     # and team namespaces. Catch-all types (concept/tool/command/note) removed —
     # tokens that used to become those nodes are now attributes (see the altitude
@@ -80,6 +80,75 @@ DEFAULT_SCHEMA = {
             "from": "document",
             "to": ["service", "project", "decision", "domain"],
         },
+    },
+}
+
+
+# Ontology v2.1 (schema version 4) keeps the v3 type topology while adding a
+# human-readable contract. The metadata is optional in the Pydantic models so
+# custom and historical schemas remain loadable.
+_NODE_DISPLAY = {
+    "person": ("Person", "People", "name"),
+    "role": ("Role", "Roles", "name"),
+    "skill": ("Skill", "Skills", "name"),
+    "domain": ("Domain", "Domains", "name"),
+    "preference": ("Preference", "Preferences", "name"),
+    "value": ("Value", "Values", "name"),
+    "goal": ("Goal", "Goals", "title"),
+    "service": ("Service", "Services", "name"),
+    "project": ("Project", "Projects", "name"),
+    "decision": ("Decision", "Decisions", "title"),
+    "team": ("Team", "Teams", "name"),
+    "document": ("Document", "Documents", "title"),
+}
+
+_EDGE_DISPLAY = {
+    "depends_on": ("Depends on", "Depended on by"),
+    "part_of": ("Part of", "Contains"),
+    "decided_by": ("Decided by", "Made decision"),
+    "owns": ("Owns", "Owned by"),
+    "contributes_to": ("Contributes to", "Has contributor"),
+    "works_on": ("Works on", "Has contributor"),
+    "has_role": ("Has role", "Role held by"),
+    "has_skill": ("Has skill", "Skill of"),
+    "in_domain": ("In domain", "Includes"),
+    "pursues": ("Pursues", "Pursued by"),
+    "holds_value": ("Holds value", "Held by"),
+    "member_of": ("Member of", "Has member"),
+    "is_a": ("Is a", "Includes"),
+    "collaborates_with": ("Collaborates with", "Collaborates with"),
+    "prefers": ("Prefers", "Preferred by"),
+    "relates_to": ("Relates to", "Relates to"),
+    "documents": ("Documents", "Documented by"),
+}
+
+DEFAULT_SCHEMA = {
+    **DEFAULT_SCHEMA_V3,
+    "version": 4,
+    "common_node_props": {
+        "summary": "string",
+        "description": "string",
+    },
+    "common_edge_props": {
+        "description": "string",
+    },
+    "node_types": {
+        name: {
+            **spec,
+            "label": _NODE_DISPLAY[name][0],
+            "plural": _NODE_DISPLAY[name][1],
+            "display_prop": _NODE_DISPLAY[name][2],
+        }
+        for name, spec in DEFAULT_SCHEMA_V3["node_types"].items()
+    },
+    "edge_types": {
+        name: {
+            **spec,
+            "props": {},
+            "label": _EDGE_DISPLAY[name][0],
+            "inverse_label": _EDGE_DISPLAY[name][1],
+        }
+        for name, spec in DEFAULT_SCHEMA_V3["edge_types"].items()
     },
 }
 

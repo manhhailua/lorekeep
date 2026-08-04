@@ -1,6 +1,6 @@
 from datetime import date
 import json
-from lorekeep.models import Node, Edge, DocChunk, Schema, Manifest
+from lorekeep.models import ContentQuality, Node, Edge, DocChunk, Schema, Manifest
 
 
 def test_node_serializes_with_sorted_keys():
@@ -36,6 +36,10 @@ def test_schema_loads_from_dict():
     assert s.version == 1
     assert "service" in s.node_types
     assert s.edge_types["depends_on"].from_ == "service"
+    assert s.common_node_props == {}
+    assert s.common_edge_props == {}
+    assert s.node_types["service"].display_prop is None
+    assert s.edge_types["depends_on"].label is None
 
 
 def test_manifest_round_trips():
@@ -44,3 +48,21 @@ def test_manifest_round_trips():
     js = m.to_json()
     m2 = Manifest.from_json(js)
     assert m2.node_count == 2
+    assert m2.content_quality is None
+
+
+def test_manifest_round_trips_content_quality():
+    quality = ContentQuality(
+        node_label_coverage=1.0,
+        node_summary_coverage=0.75,
+        node_description_coverage=0.5,
+        edge_description_coverage=1.0,
+        generic_edge_ratio=0.25,
+        duplicate_label_count=2,
+    )
+    manifest = Manifest(
+        schema_version=4, chunk_count=1, node_count=4, edge_count=2,
+        run_id="quality", facts_hash="hash", content_quality=quality,
+    )
+
+    assert Manifest.from_json(manifest.to_json()).content_quality == quality

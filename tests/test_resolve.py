@@ -68,6 +68,64 @@ def test_edge_ids_are_deterministic():
     assert [x.id for x in r.edges] == ["e_depends_on_0001", "e_depends_on_0002"]
 
 
+def test_human_text_merge_is_rich_and_input_order_independent():
+    terse = Node(
+        id="svc:api", type="service", ns=("team",),
+        props={"name": "API", "summary": "API service.", "description": "Handles API calls."},
+        src=("team/a.md:1",),
+    )
+    rich = Node(
+        id="svc:api", type="service", ns=("team",),
+        props={
+            "name": "API",
+            "summary": "Core API service for customer payment requests.",
+            "description": "Handles API calls.\n\nValidates requests before routing them.",
+        },
+        src=("team/b.md:1",),
+    )
+
+    forward = resolve([terse, rich], []).nodes[0]
+    reverse = resolve([rich, terse], []).nodes[0]
+
+    assert forward == reverse
+    assert forward.props["summary"] == rich.props["summary"]
+    assert forward.props["description"].count("Handles API calls.") == 1
+    assert "Validates requests" in forward.props["description"]
+
+
+def test_duplicate_logical_edges_coalesce_and_merge_descriptions():
+    nodes = [n("svc:a"), n("svc:b")]
+    edges = [
+        e(frm="svc:a", to="svc:b").model_copy(update={
+            "props": {"description": "Uses B for auth."},
+            "src": ("team/a.md:1",),
+        }),
+        e(frm="svc:a", to="svc:b").model_copy(update={
+            "props": {"description": "B validates access tokens."},
+            "src": ("team/b.md:1",),
+        }),
+    ]
+
+    result = resolve(nodes, list(reversed(edges)))
+
+    assert len(result.edges) == 1
+    assert result.edges[0].src == ("team/a.md:1", "team/b.md:1")
+    assert "Uses B for auth." in result.edges[0].props["description"]
+    assert "B validates access tokens." in result.edges[0].props["description"]
+
+
+def test_alias_resolution_uses_title_and_canonical_surface_name():
+    nodes = [
+        Node(id="decision:adr-7", type="decision", ns=("team",), props={"title": "Adopt OAuth"}),
+        Node(id="decision:oauth", type="decision", ns=("team",), props={"title": "OAuth decision"}),
+    ]
+    result = resolve(
+        nodes, [], name_aliases={"Adopt OAuth": ["OAuth decision"]},
+    )
+
+    assert [node.id for node in result.nodes] == ["decision:adr-7"]
+
+
 def test_schema_quarantines_invalid_edge_endpoint_types():
     nodes = [n("person:a", type="person"), n("goal:x", type="goal")]
     edges = [e(type="depends_on", frm="person:a", to="goal:x")]

@@ -42,6 +42,18 @@ case wiki regenerates once from the resolved facts (never double).
 Re-running is idempotent: unchanged input yields byte-identical files
 (extraction is cached under `.lorekeep/cache.json`).
 
+Schema v4 enriches facts during this existing LLM pass; it does **not** add a
+second wiki-time LLM call. Each node is asked for a source-grounded `summary`
+and optional longer `description`, and each edge for a concrete
+`props.description` explaining the relationship. Prose stays in the source
+language. `resolve` deterministically merges complementary descriptions and
+coalesces duplicate logical edges before the wiki is projected.
+
+`manifest.json` records `content_quality` coverage for labels, summaries,
+descriptions, relationship explanations, generic edges, and duplicate display
+labels. Missing prose produces a warning but does not discard an otherwise
+valid fact or make a partial compile fail.
+
 Each LLM request defaults to a 120-second timeout and two retries. Override
 `provider.timeout_seconds` or `provider.max_retries` when the configured
 endpoint needs a different policy. If every attempt fails, Lorekeep records
@@ -65,6 +77,21 @@ actually changed (`merge_count > 0` or `flagged_count > 0`).
 
 Resolve also runs automatically: the daemon (`lorekeep agent watch`) detects
 new pending entries on every poll cycle (default 60s interval).
+
+## Upgrade an existing ontology
+
+Before recompiling an existing stock v2/v3 data home:
+
+```bash
+uv run lorekeep schema upgrade --dry-run
+uv run lorekeep schema upgrade
+uv run lorekeep compile
+```
+
+The upgrade writes a versioned backup such as `schema.v3.backup.json`, is
+idempotent, and leaves custom schemas untouched unless `--force` is explicit.
+Historical facts still render, but only recompilation can add grounded summaries
+and edge explanations that were absent from the old graph.
 
 ## 5. Full pipeline (compile + resolve)
 

@@ -39,13 +39,17 @@ The first directory under `raw/` becomes a fact's `ns` (e.g. `raw/backend/...` �
 One JSON object per line. Two kinds: `node` and `edge`. Deterministic key order (sorted) for stable diffs.
 
 ```jsonl
-{"kind":"node","id":"svc:payments","type":"service","ns":["backend"],"valid_from":"2024-01-15","valid_to":null,"props":{"lang":"go"},"src":["raw/backend/payments.md:12"]}
-{"kind":"edge","id":"e_depends_on_0001","type":"depends_on","from":"svc:payments","to":"svc:auth","ns":["backend"],"valid_from":"2024-01-15","valid_to":"2025-03-01","props":{},"src":["raw/backend/payments.md:20"]}
+{"kind":"node","id":"svc:payments","type":"service","ns":["backend"],"valid_from":"2024-01-15","valid_to":null,"props":{"description":"Handles payment authorization and capture.","lang":"go","name":"payments","summary":"Core service for customer payment requests."},"src":["raw/backend/payments.md:12"]}
+{"kind":"edge","id":"e_depends_on_0001","type":"depends_on","from":"svc:payments","to":"svc:auth","ns":["backend"],"valid_from":"2024-01-15","valid_to":"2025-03-01","props":{"description":"Uses auth to validate the caller before capture."},"src":["raw/backend/payments.md:20"]}
 ```
 
 - `valid_to: null` ⇒ still current. History = multiple edges with the same endpoints and different validity windows.
 - `ns` is a **set**. `["public"]` ⇒ visible to all agents.
 - `src` is provenance (path:line) for every fact ⇒ audit, trust, incremental re-compile, and agent citations.
+- `props.summary` is concise catalog prose; `props.description` carries grounded
+  detail. Edge `props.description` explains why or how a relationship exists.
+  These remain optional at the storage-model level so historical/custom graphs
+  are readable, while stock schema v4 asks extraction to populate them.
 
 The Python field for an edge's source endpoint is `from_`; `"from"` is its JSON alias — always serialize with `by_alias=True`.
 
@@ -86,7 +90,12 @@ Agent-proposed facts are written to append-only JSONL journals before being merg
 
 ## `schema.json`
 
-Defines allowed node types and edge types with their property schemas. The extractor is constrained to this schema (structured output / JSON-schema response) so the graph is typed and predictable. The schema version is part of the chunk hash, so changing the schema forces re-extraction.
+Defines allowed node types and edge types with their property schemas. Schema v4
+adds optional `common_node_props` / `common_edge_props`, human type labels and
+plurals, a node `display_prop`, and forward/inverse edge labels. The extractor is
+constrained to this schema so the graph is typed and predictable; the wiki uses
+the labels without another LLM call. The full schema and prompt are part of the
+extraction-cache fingerprint, so changing either forces re-extraction.
 
 ## Components
 
@@ -110,7 +119,7 @@ Each component has one responsibility, a clear input/output interface, and is te
 
 **Write paths:** `ingest → extract → resolve` (compile chain); `agent propose → journal` (agent path); `import → raw/ → compile` (import chain). All converge at `resolve → writer → facts.jsonl`.
 
-**Serve chain:** `store → perm → mcp_server` (read queries + write proposals). 
+**Serve chain:** `store → perm → mcp_server` (read queries + write proposals).
 
 **Daemon:** `agent watch` triggers compile/resolve/lint/import on schedule or events.
 

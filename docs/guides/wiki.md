@@ -24,7 +24,7 @@ manually — the wiki is already generated.
 ## 2. Open the vault manually
 
 In Obsidian: **Open vault → Open folder as vault** → select the `wiki/`
-directory. The same folder also opens in [Tolaria](https://github.com/refactoringhq/tolaria)
+directory. The same folder also opens in [Tolaria](https://tolaria.md)
 (see [§9](#9-tolaria)).
 
 | Install | Vault path |
@@ -40,13 +40,14 @@ directory. The same folder also opens in [Tolaria](https://github.com/refactorin
 
 ## 3. What's in the vault
 
-Flat layout — one `.md` per node at the root (Tolaria requires a flat vault;
-Obsidian works the same either way):
+Lorekeep uses a flat, portable layout—one `.md` per node at the root. Both apps
+can scan it directly, and stable filename stems keep relation fields portable:
 
 ```
 wiki/
-├── index.md              # catalog of every entity, grouped by type
-├── overview.md           # graph stats dashboard (counts, temporal range, ns)
+├── index.md              # landing dashboard: goals/projects, decisions, people, hubs
+├── catalog.md            # every entity, grouped by human type label
+├── overview.md           # graph + content-quality + compile diagnostics
 ├── log.md                # append-only generation log
 ├── svc-payments-api.md   # one page per node, <slug>.md
 ├── svc-auth.md
@@ -73,18 +74,30 @@ aliases: ["payments-api"]  # human-readable name; canonical ID stays above
 props:                     # complete, lossless copy of the node fact's props
   lang: "go"
   name: "payments-api"
+  summary: "Main API for payment requests."
+  description: "Routes validated payment operations to the ledger."
 lang: "go"                 # safe props are mirrored for Obsidian/Dataview
 name: "payments-api"
+summary: "Main API for payment requests."
 depends_on:                  # ← relationship field (out-edges)
   - "[[svc-auth]]"
 ---
 ```
 
-The body shows a first-class **Description** section when the ontology fact has
-`props.description`, a Properties table for the remaining props, explicit
-**Relationships** (`depends_on →`, `← decided_by`), and a Timeline. Description
-paragraphs and Markdown are preserved instead of being flattened into a table
-cell.
+The note body is ordered for reading rather than graph auditing:
+
+1. first H1 as the human name/title;
+2. one-line summary lead and optional **About** prose;
+3. **At a glance** attributes such as status, language, and timeframe;
+4. **Connections** grouped under friendly forward/inverse labels;
+5. timeline and source provenance;
+6. fact IDs, namespaces, and edge audit data at the bottom under
+   **Technical details**.
+
+A relationship reads like
+`Depends on [[Auth|Auth]] — Uses auth to validate access tokens`, rather than a
+seven-column fact table. Edge properties, IDs, validity, namespaces, and source
+locations remain available at the bottom for issue reports and audits.
 
 Every node prop is retained under the frontmatter `props` object. Safe keys are
 also mirrored at the top level so queries such as `TABLE lang` remain concise.
@@ -93,12 +106,12 @@ metadata; their original fact values remain available through `props.<key>`.
 Likewise, a custom edge type that collides with metadata or a mirrored prop is
 emitted as `relation_<edge-type>`.
 
-Each relationship row retains the source edge fact's ID, namespaces, validity
-window, provenance, and properties, so a page can be checked directly against
-`facts.jsonl`. Parallel or temporal edge facts remain separate rows. The index
-uses readable `name`/`title` link aliases and a short description when present;
-relationship tables retain a canonical link plus a readable Label column. The
-filename and frontmatter `id` remain the canonical ontology ID.
+Each connection retains the source edge fact's ID, namespaces, validity window,
+provenance, and properties, so a page can be checked directly against
+`facts.jsonl`. Parallel temporal facts remain distinct. Duplicate logical edges
+with the same type, endpoints, and validity are coalesced during resolve and
+their descriptions/provenance are merged deterministically. The filename and
+frontmatter `id` remain the canonical ontology ID.
 
 ## 4. Graph view
 
@@ -108,20 +121,20 @@ directly. Tips:
 
 - **Start focused** — open a single entity, then run *Command → Open local
   graph*. The full graph of a large vault is a hairball.
-- **Filter** — exclude `index.md`, `overview.md`, and `log.md` in graph
+- **Filter** — exclude `index.md`, `catalog.md`, `overview.md`, and `log.md` in graph
   settings, or color/filter by the `#entity` tag. Entity notes use a flat
   layout, so there is no `entities/` path to filter.
 - **Color groups** — use type tags (`#service`, `#team`) or namespace tags
   (`#backend`, `#frontend`) to color by ontology type or namespace.
 - **Backlinks** — the panel at the bottom of each page is Obsidian's
-  auto-generated inbound-reference list (incoming edges); the Relationships
+  auto-generated inbound-reference list (incoming edges); the Connections
   section in the body is the explicit version.
 
 ## 5. Tags
 
 Every entity page is tagged `[<type>, <ns>..., entity]` (e.g.
-`["service", "backend", "entity"]`). `index`/`overview` carry
-`[index|overview, lorekeep-wiki]`.
+`["service", "backend", "entity"]`). `index`/`catalog`/`overview` carry their
+page kind plus `lorekeep-wiki`.
 
 - **Tag pane** (right sidebar) — click a tag to filter the file list.
 - **Graph coloring** — color groups can key off tags (`#service`, `#backend`).
@@ -170,7 +183,23 @@ FROM #entity
 WHERE contains(ns, "backend")
 ```
 
-## 7. Refresh after compile
+## 7. Upgrade old graphs for richer prose
+
+The renderer has a truthful fallback for historical facts, but it never invents
+domain content. If `index.md` warns that the graph schema is stale, run:
+
+```bash
+uvx lorekeep schema upgrade --dry-run
+uvx lorekeep schema upgrade
+uvx lorekeep compile
+```
+
+Stock v2/v3 schemas are backed up and upgraded to v4. Custom schemas are not
+overwritten without `--force`. Recompile is the important second step: wiki-only
+regeneration cannot manufacture summaries or relationship explanations absent
+from `facts.jsonl`. See `overview.md` for exact content-quality coverage.
+
+## 8. Refresh after compile
 
 Wiki regeneration builds every page in a temp sibling directory, then
 atomically replaces each `.md` file inside the existing vault. The vault root
@@ -187,17 +216,18 @@ merge). Use it (or `--open`) only to force a refresh.
 
 ## 9. Tolaria
 
-The same `wiki/` folder opens in [Tolaria](https://github.com/refactoringhq/tolaria)
-(file-first, git-first, macOS/Win/Linux). The flat layout + relationship
-frontmatter are shaped for it:
+The same `wiki/` folder opens in [Tolaria](https://tolaria.md)
+(file-first, git-first, macOS/Win/Linux). The layout + relationship frontmatter
+are shaped for it:
 
-- **Flat vault** — Tolaria indexes only root-level `.md`, so the flat layout is
-  required (and is exactly what lorekeep emits).
+- **Portable flat vault** — [Tolaria can recursively discover Markdown notes](https://tolaria.md/reference/file-layout);
+  Lorekeep deliberately emits one flat root so the same stable filenames and
+  wikilinks behave identically in Tolaria and Obsidian.
 - **Relationship panel + neighborhood** — every out-edge is a frontmatter field
   holding `[[wikilinks]]` (`depends_on`, `relates_to`, …), which Tolaria detects
   as relationships. Open an entity → the Inspector's Relationships panel shows
   them as clickable chips; *Neighborhood* mode pivots the note list by them.
-- **Types** — the `type:` field (`service`, `team`, `concept`, …) drives Tolaria's
+- **Types** — the `type:` field (`service`, `team`, `decision`, …) drives Tolaria's
   type grouping in the sidebar.
 - **Backlinks** — inbound edges (body `[[wikilinks]]`) show in Tolaria's
   backlinks panel.
@@ -207,9 +237,9 @@ To open: **File → Open vault** → select the `wiki/` folder (same one as Obsi
 Tolaria, open the printed path manually.
 
 > **One vault, two apps.** Obsidian and Tolaria read the same files, so you can
-> use either (or both) on the same `wiki/`. The cosmetic difference: Obsidian
-> has no `entities/<type>/` file-tree grouping (Tolaria is flat by design) — use
-> the `type:` field, tags, or `index.md` to group instead.
+> use either (or both) on the same `wiki/`. Lorekeep keeps the generated vault
+> flat for stable cross-app links; use the `type:` field, tags, or `catalog.md`
+> to group notes.
 
 ## 10. Multi-device
 
@@ -221,6 +251,9 @@ The wiki is **derived**, not part of the backup (`lorekeep backup` tracks
 ## Troubleshooting
 
 - **Empty wiki / `facts.jsonl not found`** — run `lorekeep compile` first.
+- **Pages show only structural fallback prose** — inspect the quality table in
+  `overview.md`; upgrade the schema and re-run `compile` so the LLM can enrich
+  facts at compile time. Running `wiki` alone only reprojects existing facts.
 - **Unresolved `[[wikilink]]`** — slugs replace `:` and `/` with `-`
   (`svc:payments-api` → `svc-payments-api`). A collision between two node IDs
   that slug identically raises `ValueError` at generation rather than

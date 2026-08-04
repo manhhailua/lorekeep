@@ -8,7 +8,8 @@ is append-only by design).
 Output structure (flat — one .md per node at the root, browsable in BOTH
 Obsidian and Tolaria from the same folder):
     wiki/
-    ├── index.md                # catalog of all entities, grouped by type
+    ├── index.md                # human-first landing page
+    ├── catalog.md              # all entities, grouped by type
     ├── log.md                  # append-only generation log
     ├── overview.md             # graph stats dashboard
     └── <slug>.md               # one page per node, [[wikilinks]] for edges,
@@ -27,7 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from lorekeep.compile.writer import _atomic_write
-from lorekeep.models import Edge, Manifest, Node
+from lorekeep.models import Edge, Manifest, Node, Schema
 from lorekeep.store.graph import GraphStore
 
 
@@ -107,28 +108,38 @@ def _fmt_validity(valid_from, valid_to) -> str:
     return "always"
 
 
-def _fmt_prop_value(val) -> str:
-    """Format a prop value for markdown table cell — escape pipes, collapse newlines."""
-    if isinstance(val, str):
-        s = val.replace("|", "\\|").replace("\n", " ")
-    else:
-        s = json.dumps(val, ensure_ascii=False, sort_keys=True).replace("|", "\\|").replace("\n", " ")
-    return s
+def _humanize(value: str) -> str:
+    return " ".join(part for part in re.split(r"[_-]+", value) if part).title()
 
 
-def _node_title(node: Node) -> str:
+def _node_type_label(node_type: str, schema: Schema | None = None) -> str:
+    spec = schema.node_types.get(node_type) if schema else None
+    return spec.label if spec and spec.label else _humanize(node_type)
+
+
+def _node_type_plural(node_type: str, schema: Schema | None = None) -> str:
+    spec = schema.node_types.get(node_type) if schema else None
+    if spec and spec.plural:
+        return spec.plural
+    label = _node_type_label(node_type, schema)
+    return label if label.endswith("s") else f"{label}s"
+
+
+def _node_title(node: Node, schema: Schema | None = None) -> str:
     """Return the human label using the ontology's name/title conventions.
 
     Most ontology node types use ``props.name``. Goals, decisions, and
     documents use ``props.title`` instead, so treating ``name`` as the only
     display field makes a correct v2 fact look like an opaque ID in the wiki.
     """
-    for key in ("name", "title"):
+    spec = schema.node_types.get(node.type) if schema else None
+    preferred = spec.display_prop if spec and spec.display_prop else None
+    for key in dict.fromkeys(key for key in (preferred, "name", "title") if key):
         value = node.props.get(key)
         if value is not None:
             label = str(value).strip()
             if label:
-                return label
+                return " ".join(label.split())
     return node.id
 
 
@@ -145,9 +156,9 @@ def _node_aliases(node: Node) -> list[str]:
     return aliases
 
 
-def _wikilink(node: Node) -> str:
+def _wikilink(node: Node, schema: Schema | None = None) -> str:
     """Return a readable Obsidian link while retaining the stable file slug."""
-    label = " ".join(_node_title(node).split()).replace("|", "\\|")
+    label = " ".join(_node_title(node, schema).split()).replace("|", "\\|")
     return f"[[{_slug(node.id)}|{label}]]"
 
 
@@ -222,101 +233,140 @@ def _frontmatter(node: Node, out_edges: list[Edge] | None = None) -> str:
     return "\n".join(lines)
 
 
+_HUMAN_TEXT_PROPS = frozenset({"name", "title", "summary", "description"})
+_PROP_PRIORITY = (
+    "status",
+    "role",
+    "org",
+    "lang",
+    "level",
+    "timeframe",
+    "start_date",
+    "decided_on",
+    "kind",
+    "domain",
+)
+
+
+def _body_text(value: Any) -> str:
+    if isinstance(value, str):
+        return " ".join(value.split())
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _summary_text(node: Node, *, limit: int = 220) -> str:
+    """Return extracted summary, then a legacy-fact description fallback."""
+    value = node.props.get("summary")
+    if value is None or not str(value).strip():
+        value = node.props.get("description")
+    summary = _body_text(value) if value is not None else ""
+    if not summary:
+        return ""
+    if len(summary) <= limit:
+        return summary
+    return summary[:limit - 1].rstrip() + "…"
+
+
 def _description(node: Node) -> str:
-    """Render the semantic description as readable Markdown, not a table cell."""
+    """Render detailed prose in the body, below the one-line lead."""
     value = node.props.get("description")
     if value is None:
         return ""
     text = str(value).replace("\r\n", "\n").replace("\r", "\n").strip()
     if not text:
         return ""
-    return "\n".join(["", "## Description", "", text])
-
-
-def _props_table(node: Node) -> str:
-    keys = [key for key in sorted(node.props) if key != "description"]
-    if not keys:
+    summary = _summary_text(node)
+    if "\n" not in text and summary and summary == " ".join(text.split()):
         return ""
-    lines = ["", "## Properties", "", "| Key | Value |", "|---|---|"]
+    return "\n".join(["", "## About", "", text])
+
+
+def _friendly_key(key: str) -> str:
+    return _humanize(key).replace(" Id", " ID")
+
+
+def _at_a_glance(node: Node, schema: Schema | None = None) -> str:
+    """Render meaningful entity attributes as scan-friendly bullets."""
+    keys = [key for key in node.props if key not in _HUMAN_TEXT_PROPS]
+    priority = {key: index for index, key in enumerate(_PROP_PRIORITY)}
+    keys.sort(key=lambda key: (priority.get(key, len(priority)), key))
+    lines = ["", "## At a glance", ""]
+    lines.append(f"- **Type:** {_node_type_label(node.type, schema)}")
     for key in keys:
-        lines.append(f"| {_fmt_prop_value(key)} | {_fmt_prop_value(node.props[key])} |")
+        lines.append(f"- **{_friendly_key(key)}:** {_body_text(node.props[key])}")
     return "\n".join(lines)
 
 
-def _description_summary(node: Node, *, limit: int = 160) -> str:
-    value = node.props.get("description")
-    if value is None:
-        return ""
-    summary = " ".join(str(value).split())
-    if len(summary) <= limit:
-        return summary
-    return summary[:limit - 1].rstrip() + "\u2026"
+def _relation_label(
+    edge_type: str,
+    *,
+    outgoing: bool,
+    schema: Schema | None = None,
+) -> str:
+    spec = schema.edge_types.get(edge_type) if schema else None
+    if spec:
+        label = spec.label if outgoing else spec.inverse_label
+        if label:
+            return label
+    return _humanize(edge_type).capitalize()
+
+
+def _edge_description(edge: Edge) -> str:
+    for key in ("description", "reason", "context", "note"):
+        value = edge.props.get(key)
+        if value is not None and str(value).strip():
+            return _body_text(value)
+    return ""
 
 
 def _relationships(
-    out_edges: list[Edge], in_edges: list[Edge], store: GraphStore,
+    out_edges: list[Edge],
+    in_edges: list[Edge],
+    store: GraphStore,
+    schema: Schema | None = None,
 ) -> str:
-    """Render every edge touching node with its fact metadata.
+    """Render graph context as natural, described wikilink bullets."""
+    if not out_edges and not in_edges:
+        return ""
 
-    A bare wikilink is enough for navigation, but it drops edge identity,
-    namespace, provenance, and arbitrary properties. Keeping those fields in
-    the generated table makes the human projection auditable against
-    facts.jsonl without sacrificing Obsidian graph links.
-    """
-    sections: list[str] = []
+    grouped: dict[tuple[str, bool], list[Edge]] = {}
+    for edge in out_edges:
+        grouped.setdefault((edge.type, True), []).append(edge)
+    for edge in in_edges:
+        grouped.setdefault((edge.type, False), []).append(edge)
 
-    def add_table(edges: list[Edge], *, outgoing: bool) -> None:
-        sections.extend([
-            "| Entity | Label | Fact ID | Namespaces | Validity | Sources | Properties |",
-            "|---|---|---|---|---|---|---|",
-        ])
+    sections = ["", "## Connections", ""]
+    ordered_groups = sorted(
+        grouped,
+        key=lambda key: (
+            _relation_label(key[0], outgoing=key[1], schema=schema),
+            not key[1],
+            key[0],
+        ),
+    )
+    for edge_type, outgoing in ordered_groups:
+        sections.append(
+            f"### {_relation_label(edge_type, outgoing=outgoing, schema=schema)}"
+        )
+        sections.append("")
+        edges = sorted(
+            grouped[(edge_type, outgoing)],
+            key=lambda edge: ((edge.to if outgoing else edge.from_), edge.id),
+        )
         for edge in edges:
             other_id = edge.to if outgoing else edge.from_
             other = store.get_node(other_id)
-            entity = f"[[{_slug(other.id)}]]" if other is not None else _fmt_prop_value(other_id)
-            label = _node_title(other) if other is not None else other_id
-            sections.append(
-                "| " + " | ".join([
-                    entity,
-                    _fmt_prop_value(label),
-                    f"<code>{_fmt_prop_value(edge.id)}</code>",
-                    _fmt_prop_value(list(edge.ns)),
-                    _fmt_validity(edge.valid_from, edge.valid_to),
-                    _fmt_prop_value(list(edge.src)),
-                    _fmt_prop_value(edge.props),
-                ]) + " |"
-            )
-
-    if out_edges:
-        sections.extend(["", "## Relationships", ""])
-        by_type: dict[str, list[Edge]] = {}
-        for edge in out_edges:
-            by_type.setdefault(edge.type, []).append(edge)
-        for etype in sorted(by_type):
-            sections.append(f"### {etype} \u2192")
-            sections.append("")
-            add_table(
-                sorted(by_type[etype], key=lambda edge: (edge.to, edge.id)),
-                outgoing=True,
-            )
-            sections.append("")
-
-    if in_edges:
-        if not out_edges:
-            sections.extend(["", "## Relationships", ""])
-        by_type = {}
-        for edge in in_edges:
-            by_type.setdefault(edge.type, []).append(edge)
-        for etype in sorted(by_type):
-            sections.append(f"### \u2190 {etype}")
-            sections.append("")
-            add_table(
-                sorted(by_type[etype], key=lambda edge: (edge.from_, edge.id)),
-                outgoing=False,
-            )
-            sections.append("")
-
-    return "\n".join(sections)
+            link = _wikilink(other, schema) if other else f"`{other_id}`"
+            line = f"- {link}"
+            description = _edge_description(edge)
+            if description:
+                line += f" — {description}"
+            validity = _fmt_validity(edge.valid_from, edge.valid_to)
+            if validity != "always":
+                line += f" _({validity})_"
+            sections.append(line)
+        sections.append("")
+    return "\n".join(sections).rstrip()
 
 
 def _timeline(node: Node) -> str:
@@ -330,37 +380,90 @@ def _timeline(node: Node) -> str:
     return "\n".join(lines)
 
 
-def _entity_page(node: Node, store: GraphStore) -> str:
-    title = _node_title(node)
+def _sources(node: Node) -> str:
+    if not node.src:
+        return ""
+    lines = ["", "## Sources", ""]
+    lines.extend(f"- `{source}`" for source in node.src)
+    return "\n".join(lines)
+
+
+def _technical_details(
+    node: Node,
+    out_edges: list[Edge],
+    in_edges: list[Edge],
+    store: GraphStore,
+    schema: Schema | None = None,
+) -> str:
+    lines = [
+        "",
+        "## Technical details",
+        "",
+        f"- **Fact ID:** `{node.id}`",
+        f"- **Namespaces:** {_body_text(list(node.ns))}",
+        f"- **Validity:** {_fmt_validity(node.valid_from, node.valid_to)}",
+    ]
+    touching = [(edge, True) for edge in out_edges] + [
+        (edge, False) for edge in in_edges
+    ]
+    if touching:
+        lines.extend(["", "### Relationship facts", ""])
+        for edge, outgoing in sorted(touching, key=lambda item: item[0].id):
+            other_id = edge.to if outgoing else edge.from_
+            other = store.get_node(other_id)
+            other_label = _node_title(other, schema) if other else other_id
+            relation = _relation_label(edge.type, outgoing=outgoing, schema=schema)
+            detail = f"- `{edge.id}` — {relation} {other_label}"
+            metadata = [f"namespaces: {_body_text(list(edge.ns))}"]
+            validity = _fmt_validity(edge.valid_from, edge.valid_to)
+            if validity != "always":
+                metadata.append(f"validity: {validity}")
+            if edge.src:
+                metadata.append(
+                    "sources: " + ", ".join(f"`{source}`" for source in edge.src)
+                )
+            if edge.props:
+                metadata.append(f"properties: `{_body_text(edge.props)}`")
+            detail += "; " + "; ".join(metadata)
+            lines.append(detail)
+    return "\n".join(lines)
+
+
+def _entity_page(
+    node: Node, store: GraphStore, schema: Schema | None = None,
+) -> str:
+    title = _node_title(node, schema)
     out_e = store.out_edges(node.id)
     in_e = store.in_edges(node.id)
+    summary = _summary_text(node)
+    if not summary:
+        summary = f"{title} — {_node_type_label(node.type, schema)}."
 
-    parts = [
+    sections = [
         _frontmatter(node, out_e),
-        "",
         f"# {title}",
-        "",
-        f"> ID: `{node.id}`",
+        f"> {summary}",
+        _description(node).strip(),
+        _at_a_glance(node, schema).strip(),
+        _relationships(out_e, in_e, store, schema).strip(),
+        _timeline(node).strip(),
+        _sources(node).strip(),
+        _technical_details(node, out_e, in_e, store, schema).strip(),
     ]
-    parts.append(_description(node))
-    parts.append(_props_table(node))
-    parts.append(_relationships(out_e, in_e, store))
-    parts.append(_timeline(node))
-    parts.append("")
-    return "\n".join(parts)
+    return "\n\n".join(section for section in sections if section) + "\n"
 
 
-def _index_page(store: GraphStore) -> str:
+def _catalog_page(store: GraphStore, schema: Schema | None = None) -> str:
     nodes = store.all_nodes()
-    edge_count = store._G.number_of_edges()
+    edge_count = len(store.all_edges())
 
     lines = [
         "---",
-        "type: index",
-        "tags: [index, lorekeep-wiki]",
+        "type: catalog",
+        "tags: [catalog, lorekeep-wiki]",
         "---",
         "",
-        "# Lorekeep Wiki \u2014 Index",
+        "# Entity Catalog",
         "",
         f"Nodes: {len(nodes)} | Edges: {edge_count}",
         "",
@@ -371,27 +474,174 @@ def _index_page(store: GraphStore) -> str:
         by_type.setdefault(n.type, []).append(n)
 
     for ntype in sorted(by_type):
-        lines.append(f"## {ntype.title()}s")
+        lines.append(f"## {_node_type_plural(ntype, schema)}")
         lines.append("")
-        for n in sorted(by_type[ntype], key=lambda n: n.id):
-            summary_parts: list[str] = []
-            description = _description_summary(n)
-            if description:
-                summary_parts.append(description)
-            if n.props.get("lang"):
-                summary_parts.append(f"lang: {n.props['lang']}")
-            if n.valid_from:
-                summary_parts.append(f"since {_fmt_date(n.valid_from)}")
-            line = f"- {_wikilink(n)}"
-            if summary_parts:
-                line += " \u2014 " + " \u00b7 ".join(summary_parts)
-            lines.append(line)
+        for node in sorted(
+            by_type[ntype],
+            key=lambda item: (_node_title(item, schema).casefold(), item.id),
+        ):
+            lines.append(_catalog_line(node, schema))
         lines.append("")
 
     return "\n".join(lines)
 
 
-def _overview_page(store: GraphStore, manifest: Manifest | None) -> str:
+def _schema_warning(
+    manifest: Manifest | None, schema: Schema | None,
+) -> list[str]:
+    if not manifest or not schema or manifest.schema_version >= schema.version:
+        return []
+    return [
+        "> [!warning] Graph schema is out of date",
+        "> This graph was compiled with schema "
+        f"v{manifest.schema_version}, while the current schema is v{schema.version}. "
+        "Run `lorekeep compile` to enrich the facts before judging wiki quality.",
+        "",
+    ]
+
+
+def _quality_warning(manifest: Manifest | None) -> list[str]:
+    quality = manifest.content_quality if manifest else None
+    if not quality:
+        return []
+    if (
+        quality.node_summary_coverage >= 1.0
+        and quality.edge_description_coverage >= 1.0
+        and quality.duplicate_label_count == 0
+    ):
+        return []
+    return [
+        "> [!note] Content quality needs attention",
+        "> Human summaries cover "
+        f"{quality.node_summary_coverage:.0%} of entities; relationship explanations "
+        f"cover {quality.edge_description_coverage:.0%} of edges; duplicate labels: "
+        f"{quality.duplicate_label_count}. Recompile source documents to improve this view.",
+        "",
+    ]
+
+
+def _catalog_line(node: Node, schema: Schema | None = None) -> str:
+    line = f"- {_wikilink(node, schema)}"
+    details: list[str] = []
+    summary = _summary_text(node, limit=180)
+    if summary:
+        details.append(summary)
+    status = node.props.get("status")
+    if status is not None and str(status).strip():
+        details.append(f"status: {_body_text(status)}")
+    if node.valid_from:
+        details.append(f"since {_fmt_date(node.valid_from)}")
+    if details:
+        line += " — " + " · ".join(details)
+    return line
+
+
+def _index_page(
+    store: GraphStore,
+    manifest: Manifest | None = None,
+    schema: Schema | None = None,
+) -> str:
+    nodes = store.all_nodes()
+    edges = store.all_edges()
+    lines = [
+        "---",
+        "type: index",
+        "tags: [index, lorekeep-wiki]",
+        "---",
+        "",
+        "# Lorekeep Wiki",
+        "",
+        "A human-readable view of the compiled temporal knowledge graph.",
+        "",
+        f"**{len(nodes)} entities · {len(edges)} connections**",
+        "",
+    ]
+    lines.extend(_schema_warning(manifest, schema))
+    lines.extend(_quality_warning(manifest))
+    lines.extend([
+        "- [[catalog|Browse every entity]]",
+        "- [[overview|Inspect graph quality and compile details]]",
+        "- [[log|View generation history]]",
+        "",
+    ])
+
+    inactive_statuses = {
+        "done", "complete", "completed", "closed", "cancelled", "archived",
+    }
+    current_work = [
+        node for node in nodes
+        if node.type in {"goal", "project"}
+        and str(node.props.get("status", "")).strip().casefold()
+        not in inactive_statuses
+    ]
+    if current_work:
+        lines.extend(["## Goals and projects", ""])
+        for node in sorted(
+            current_work,
+            key=lambda item: (
+                item.type, _node_title(item, schema).casefold(), item.id,
+            ),
+        )[:12]:
+            lines.append(_catalog_line(node, schema))
+        lines.append("")
+
+    decisions = [node for node in nodes if node.type == "decision"]
+    if decisions:
+        lines.extend(["## Decisions", ""])
+        for node in sorted(
+            decisions,
+            key=lambda item: (
+                str(item.props.get("decided_on") or _fmt_date(item.valid_from)),
+                item.id,
+            ),
+            reverse=True,
+        )[:10]:
+            lines.append(_catalog_line(node, schema))
+        lines.append("")
+
+    people = [node for node in nodes if node.type in {"person", "team"}]
+    if people:
+        lines.extend(["## People and teams", ""])
+        for node in sorted(
+            people,
+            key=lambda item: (_node_title(item, schema).casefold(), item.id),
+        )[:12]:
+            lines.append(_catalog_line(node, schema))
+        lines.append("")
+
+    hubs = sorted(
+        (
+            (len(store.out_edges(node.id)) + len(store.in_edges(node.id)), node)
+            for node in nodes
+        ),
+        key=lambda item: (
+            -item[0], _node_title(item[1], schema).casefold(), item[1].id,
+        ),
+    )
+    hubs = [(degree, node) for degree, node in hubs if degree > 0][:10]
+    if hubs:
+        lines.extend(["## Key connected entities", ""])
+        for degree, node in hubs:
+            lines.append(f"- {_wikilink(node, schema)} — {degree} connections")
+        lines.append("")
+
+    by_type: dict[str, int] = {}
+    for node in nodes:
+        by_type[node.type] = by_type.get(node.type, 0) + 1
+    if by_type:
+        lines.extend(["## Browse by type", ""])
+        for node_type in sorted(by_type):
+            plural = _node_type_plural(node_type, schema)
+            lines.append(f"- [[catalog#{plural}|{plural}]] ({by_type[node_type]})")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _overview_page(
+    store: GraphStore,
+    manifest: Manifest | None,
+    schema: Schema | None = None,
+) -> str:
     nodes = store.all_nodes()
     edges = store.all_edges()
 
@@ -403,6 +653,7 @@ def _overview_page(store: GraphStore, manifest: Manifest | None) -> str:
         "",
         "# Graph Overview",
         "",
+        *_schema_warning(manifest, schema),
         "## Statistics",
         "",
         "| Metric | Value |",
@@ -448,6 +699,22 @@ def _overview_page(store: GraphStore, manifest: Manifest | None) -> str:
         if manifest.review:
             lines.append(f"- **Pending review**: {len(manifest.review)}")
         lines.append("")
+
+        if manifest.content_quality:
+            quality = manifest.content_quality
+            lines.extend([
+                "## Content Quality",
+                "",
+                "| Measure | Coverage |",
+                "|---|---:|",
+                f"| Entity labels | {quality.node_label_coverage:.0%} |",
+                f"| Entity summaries | {quality.node_summary_coverage:.0%} |",
+                f"| Entity descriptions | {quality.node_description_coverage:.0%} |",
+                f"| Relationship descriptions | {quality.edge_description_coverage:.0%} |",
+                f"| Generic relationships | {quality.generic_edge_ratio:.0%} |",
+                f"| Duplicate labels | {quality.duplicate_label_count} |",
+                "",
+            ])
 
     all_ns: set[str] = set()
     for n in nodes:
@@ -573,6 +840,7 @@ def generate_wiki(
     graph_dir: Path,
     wiki_dir: Path,
     manifest: Manifest | None = None,
+    schema: Schema | None = None,
 ) -> dict:
     """Generate Obsidian-compatible wiki pages from facts.jsonl.
 
@@ -615,16 +883,18 @@ def generate_wiki(
         slug_map[slug] = node.id
 
     for node in sorted(nodes, key=lambda n: (n.type, n.id)):
-        page = _entity_page(node, store)
+        page = _entity_page(node, store, schema)
         slug = _slug(node.id)
-        # Flat layout: root-level <slug>.md. Required for Tolaria (flat vault —
-        # it indexes only root-level .md); works identically in Obsidian (links
-        # resolve by filename stem, tags/type frontmatter group entities).
+        # A portable flat root keeps filename stems and wikilinks identical in
+        # Obsidian and Tolaria; both apps can index this layout directly.
         entity_path = build_dir / f"{slug}.md"
         _atomic_write(entity_path, page)
 
-    _atomic_write(build_dir / "index.md", _index_page(store))
-    _atomic_write(build_dir / "overview.md", _overview_page(store, manifest))
+    _atomic_write(build_dir / "index.md", _index_page(store, manifest, schema))
+    _atomic_write(build_dir / "catalog.md", _catalog_page(store, schema))
+    _atomic_write(
+        build_dir / "overview.md", _overview_page(store, manifest, schema),
+    )
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     run_id = manifest.run_id if manifest else "unknown"
@@ -641,7 +911,6 @@ def generate_wiki(
     return {
         "nodes": len(nodes),
         "edges": len(edges),
-        # One page per node plus the three generated vault pages:
-        # index.md, overview.md, and the append-only log.md.
-        "pages": len(nodes) + 3,
+        # One page per node plus the four generated vault pages.
+        "pages": len(nodes) + 4,
     }

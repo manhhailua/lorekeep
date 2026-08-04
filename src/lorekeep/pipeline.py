@@ -10,12 +10,62 @@ from lorekeep.compile.ingest import ingest
 from lorekeep.compile.providers import LLMProvider
 from lorekeep.compile.resolve import resolve
 from lorekeep.compile.writer import facts_hash, run_id, write_graph
-from lorekeep.models import DocChunk, Edge, Manifest, Node, Schema, now_iso
+from lorekeep.models import (
+    ContentQuality,
+    DocChunk,
+    Edge,
+    Manifest,
+    Node,
+    Schema,
+    now_iso,
+)
 
 log = logging.getLogger("lorekeep")
 
 # Optional per-chunk progress hook: (index, total, chunk). Default None → silent.
 ProgressCb = Callable[[int, int, DocChunk], None]
+
+
+def measure_content_quality(
+    nodes: list[Node], edges: list[Edge], schema: Schema,
+) -> ContentQuality:
+    """Measure whether the compiled graph can support a human-readable wiki."""
+    def populated(value: object) -> bool:
+        return isinstance(value, str) and bool(value.strip())
+
+    def ratio(count: int, total: int) -> float:
+        return round(count / total, 4) if total else 1.0
+
+    labels: list[tuple[str, str]] = []
+    labeled = summarized = described = 0
+    for node in nodes:
+        spec = schema.node_types.get(node.type)
+        display_prop = spec.display_prop if spec and spec.display_prop else None
+        value = (
+            node.props.get(display_prop) if display_prop else None
+        ) or node.props.get("name") or node.props.get("title")
+        if populated(value):
+            labeled += 1
+            labels.append((node.type, " ".join(str(value).split()).casefold()))
+        summarized += int(populated(node.props.get("summary")))
+        described += int(populated(node.props.get("description")))
+
+    label_counts: dict[tuple[str, str], int] = {}
+    for key in labels:
+        label_counts[key] = label_counts.get(key, 0) + 1
+    duplicate_labels = sum(count - 1 for count in label_counts.values() if count > 1)
+    described_edges = sum(
+        populated(edge.props.get("description")) for edge in edges
+    )
+    generic_edges = sum(edge.type == "relates_to" for edge in edges)
+    return ContentQuality(
+        node_label_coverage=ratio(labeled, len(nodes)),
+        node_summary_coverage=ratio(summarized, len(nodes)),
+        node_description_coverage=ratio(described, len(nodes)),
+        edge_description_coverage=ratio(described_edges, len(edges)),
+        generic_edge_ratio=(round(generic_edges / len(edges), 4) if edges else 0.0),
+        duplicate_label_count=duplicate_labels,
+    )
 
 
 def compile_graph(
@@ -56,6 +106,7 @@ def compile_graph(
     resolved = resolve(
         all_nodes, all_edges, name_aliases=all_aliases, schema=schema,
     )
+    content_quality = measure_content_quality(resolved.nodes, resolved.edges, schema)
 
     rid = run_id(chunks, schema.version)
     provisional = Manifest(schema_version=schema.version, chunk_count=len(chunks),
@@ -80,6 +131,7 @@ def compile_graph(
         chunk_hashes=chunk_hashes,
         errors=errors,
         quarantine=[{"fact": q[0], "reason": q[1]} for q in resolved.quarantined],
+        content_quality=content_quality,
     )
     write_graph(out_dir, resolved.nodes, resolved.edges, manifest)
     return manifest
