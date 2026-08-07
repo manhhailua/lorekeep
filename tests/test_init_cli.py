@@ -11,6 +11,9 @@ runner = CliRunner()
 def isolate_project_cwd(tmp_path: Path, monkeypatch):
     """Never let init wiring touch the developer's real checkout."""
     monkeypatch.chdir(tmp_path)
+    # Prevent _start_daemon from spawning real background processes.
+    # Interactive init tests would otherwise leak 'agent watch' zombies.
+    monkeypatch.setattr("lorekeep.cli._start_daemon", lambda p: None)
 
 
 def test_init_creates_home(tmp_path: Path, monkeypatch):
