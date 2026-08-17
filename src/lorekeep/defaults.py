@@ -147,6 +147,15 @@ _EDGE_DISPLAY = {
     "same_as": ("Same as", "Alias of"),
 }
 
+# Media props belong only to node types whose entities can be photographed.
+# Offering them on abstract types (skill, value, goal, preference, ...) invites
+# the extractor to invent a picture for an idea.
+_MEDIA_NODE_TYPES = frozenset({"person", "service", "project", "team", "document"})
+_MEDIA_PROPS = {
+    "visual_desc": "string",
+    "image_links": "string[]",
+}
+
 DEFAULT_SCHEMA = {
     **DEFAULT_SCHEMA_V3,
     "version": 4,
@@ -160,6 +169,10 @@ DEFAULT_SCHEMA = {
     "node_types": {
         name: {
             **spec,
+            "props": {
+                **spec.get("props", {}),
+                **(_MEDIA_PROPS if name in _MEDIA_NODE_TYPES else {}),
+            },
             "label": _NODE_DISPLAY[name][0],
             "plural": _NODE_DISPLAY[name][1],
             "display_prop": _NODE_DISPLAY[name][2],
@@ -227,6 +240,11 @@ compile:
   language: en
   max_workers: 4
   flush_interval: 10
+  # Fetch every props.image_links URL after resolve and drop the dead ones.
+  # The only network access compile makes — set false to stay fully offline.
+  check_image_links: true
+  image_check_timeout: 10.0
+  image_check_workers: 8
 namespaces:
   read: ["*"]
   write: me

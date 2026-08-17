@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from lorekeep.compile.extract import ExtractionCache, extract_chunk
@@ -111,6 +112,9 @@ def compile_graph(
     prev_aliases: dict[str, str] | None = None,
     max_workers: int = 4,
     flush_interval: int = 10,
+    check_image_links: bool = True,
+    image_check_timeout: float = 10.0,
+    image_check_workers: int = 8,
 ) -> Manifest:
     chunks = ingest(raw_root, chunk_lines=chunk_lines)
     cache = ExtractionCache(cache_path)
@@ -241,6 +245,21 @@ def compile_graph(
         all_nodes, all_edges, name_aliases=all_aliases,
         aliases_map=prev_aliases, schema=schema,
     )
+
+    # The schema asks for links that really open; only a fetch can confirm it.
+    # Runs after resolve so each URL is probed once, not once per chunk.
+    nodes = resolved.nodes
+    if check_image_links:
+        from lorekeep.compile.imagecheck import verify_nodes
+
+        nodes, _img = verify_nodes(
+            nodes,
+            cache_path.parent / "image-links.json",
+            timeout=image_check_timeout,
+            max_workers=image_check_workers,
+        )
+        resolved = replace(resolved, nodes=nodes)
+
     content_quality = measure_content_quality(resolved.nodes, resolved.edges, schema)
 
     rid = run_id(chunks, schema.version)

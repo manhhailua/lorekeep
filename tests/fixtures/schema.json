@@ -1,8 +1,8 @@
 {
   "version": 1,
   "node_types": {
-    "service": {"props": {"name": "string", "lang": "string"}},
-    "team": {"props": {"name": "string"}},
+    "service": {"props": {"name": "string", "lang": "string", "visual_desc": "string", "image_links": "string[]"}},
+    "team": {"props": {"name": "string", "visual_desc": "string", "image_links": "string[]"}},
     "decision": {"props": {"title": "string"}}
   },
   "edge_types": {

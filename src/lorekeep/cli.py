@@ -467,6 +467,9 @@ def compile(
             prev_aliases=_load_prev_aliases(p["out"] / "facts.jsonl"),
             max_workers=config.compile.max_workers,
             flush_interval=config.compile.flush_interval,
+            check_image_links=config.compile.check_image_links,
+            image_check_timeout=config.compile.image_check_timeout,
+            image_check_workers=config.compile.image_check_workers,
         )
 
     ok(f"compiled: {manifest.node_count} nodes, {manifest.edge_count} edges, "
@@ -649,6 +652,9 @@ def eval_locomo_cmd(
             prev_aliases=_load_prev_aliases(p["out"] / "facts.jsonl"),
             max_workers=config.compile.max_workers,
             flush_interval=config.compile.flush_interval,
+            check_image_links=config.compile.check_image_links,
+            image_check_timeout=config.compile.image_check_timeout,
+            image_check_workers=config.compile.image_check_workers,
         )
         typer.echo(f"eval-locomo: compiled {manifest.node_count} nodes, {manifest.edge_count} edges")
 
@@ -1896,8 +1902,11 @@ def _auto_import_and_compile(p: dict, *, defer: bool = False) -> None:
                 personal_ns=config.namespaces.write,
                 language=config.compile.language,
                 prev_aliases=_load_prev_aliases(p["out"] / "facts.jsonl"),
-            max_workers=config.compile.max_workers,
-            flush_interval=config.compile.flush_interval,
+                max_workers=config.compile.max_workers,
+                flush_interval=config.compile.flush_interval,
+                check_image_links=config.compile.check_image_links,
+                image_check_timeout=config.compile.image_check_timeout,
+                image_check_workers=config.compile.image_check_workers,
             )
         _report_compile_errors(manifest, exit_on_total_failure=False)
         _report_content_quality(manifest)
@@ -3291,6 +3300,9 @@ def watch(
                             prev_aliases=_load_prev_aliases(p["out"] / "facts.jsonl"),
                             max_workers=config.compile.max_workers,
                             flush_interval=config.compile.flush_interval,
+                            check_image_links=config.compile.check_image_links,
+                            image_check_timeout=config.compile.image_check_timeout,
+                            image_check_workers=config.compile.image_check_workers,
                         )
                     _report_compile_errors(dm, exit_on_total_failure=False)
                     _report_content_quality(dm)

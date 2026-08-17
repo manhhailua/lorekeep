@@ -19,8 +19,9 @@ SYSTEM_PROMPT_BASE = (
     "for a service, prj:checkout-redesign for a project, person:alice for a person). "
     "Use the id_prefix shown for each type in the schema — e.g. if a type has "
     "id_prefix 'svc', name it svc:my-service, NOT service:my-service. "
-    "Give each node a type, optional props using the preferred keys for that type, "
-    "and optional valid_from/valid_to (ISO dates, null = unknown). "
+    "Give each node a type and props using the keys listed for that type — fill "
+    "every key the source supports evidence for, not just the name and summary — "
+    "plus optional valid_from/valid_to (ISO dates, null = unknown). "
     "For every edge give type, from (node id), to (node id), optional props, "
     "and optional valid_from/valid_to. "
     "aliases maps a canonical name to surface variants. Emit NO text outside the JSON."
@@ -68,6 +69,21 @@ TEMPORAL_RULE = (
     "'service launched on D' means that service node has valid_from D; "
     "'dependency removed on D' means that dependency edge has valid_to D while "
     "both endpoint service nodes remain open."
+)
+
+MEDIA_RULE = (
+    "Media rule — props.image_links is REQUIRED, not optional: whenever the chunk "
+    "contains an image URL (markdown ![alt](url), a link whose target ends in "
+    ".jpg/.jpeg/.png/.webp, or a bare image URL) you MUST copy that URL VERBATIM "
+    "into props.image_links of the ONE node the caption refers to. Use the caption "
+    "or surrounding sentence to decide which node. Leaving image_links out of your "
+    "output when the chunk contains image URLs is an incomplete extraction. The "
+    "only permitted reason to skip a URL is that no node in your output corresponds "
+    "to its caption. Never invent, shorten, complete, or reconstruct a URL, and "
+    "never attach an image to a node its caption does not name. When the caption or "
+    "text says what the picture shows, you MUST also set props.visual_desc on that "
+    "node as one or two sentences. These two props exist only on node types that "
+    "can be photographed — never add them to abstract types."
 )
 
 ENTITY_RESOLUTION_RULE = (
@@ -133,6 +149,7 @@ def build_system_prompt(
         OUTPUT_LANGUAGE_RULE.format(language=language),
         ALTITUDE_RULE,
         TEMPORAL_RULE,
+        MEDIA_RULE,
         ENTITY_RESOLUTION_RULE,
         f"Allowed node_types and preferred props: {node_types}",
         f"Allowed edge_types: {edge_types}",

@@ -27,6 +27,11 @@ class CompileConfig(BaseModel):
     # Streaming flush: resolve + write facts.jsonl every N completed chunks.
     # 0 = no intermediate flush (write only at the end — legacy behavior).
     flush_interval: int = Field(default=10, ge=0, le=500)
+    # Fetch every props.image_links URL after resolve and drop the dead ones.
+    # This is the only network access compile makes; set false to stay offline.
+    check_image_links: bool = True
+    image_check_timeout: float = Field(default=10.0, gt=0, le=120)
+    image_check_workers: int = Field(default=8, ge=1, le=32)
 
 
 class NamespacesConfig(BaseModel):
