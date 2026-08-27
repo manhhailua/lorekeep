@@ -31,6 +31,8 @@ uv run lorekeep <command>                    # run the CLI in dev mode
 | `agent watch` | Start the daemon (drain lifecycle events, watch memory/raw/pending, compile/resolve) |
 | `agent heal` | Run self-heal standalone (remove dangling edges, dedupe, flag issues) |
 | `agent service install/uninstall/status` | Install/uninstall/status the daemon as an OS service (launchd/systemd) |
+| `quarantine detect [--apply]` | List orphaned (zero-edge) nodes; `--apply` parks them via `props.quarantined_at`/`quarantined_reason` |
+| `quarantine review` | Per quarantined node: `[r]estore` / `[k]eep` / `[s]kip` |
 | `schema upgrade` | Upgrade stock schema to latest version (backs up previous, `--dry-run`/`--force` for custom schemas) |
 | `mcp add --agent claude\|cursor\|codex\|opencode\|grok\|qoder\|copilot\|cmd [--scope user\|project] [--read-ns NS]` | Write agent MCP config (default scope from `agents.wire_scope`) |
 | `config show` | Print config.yaml |

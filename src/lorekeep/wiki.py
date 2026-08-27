@@ -29,7 +29,7 @@ from typing import Any
 
 from lorekeep.compile.writer import _atomic_write
 from lorekeep.models import Edge, Manifest, Node, Schema
-from lorekeep.store.graph import GraphStore
+from lorekeep.store.graph import GraphStore, is_quarantined
 
 
 _RESERVED_FRONTMATTER_KEYS = frozenset({
@@ -661,6 +661,7 @@ def _overview_page(
     store: GraphStore,
     manifest: Manifest | None,
     schema: Schema | None = None,
+    quarantined_count: int = 0,
 ) -> str:
     nodes = store.all_nodes()
     edges = store.all_edges()
@@ -716,6 +717,11 @@ def _overview_page(
             lines.append(f"- **Agent-merged facts**: {manifest.merged_count}")
         if manifest.quarantined_count:
             lines.append(f"- **Quarantined**: {manifest.quarantined_count}")
+        if quarantined_count:
+            lines.append(
+                f"- **Orphan-quarantined nodes**: {quarantined_count} "
+                "(hidden from this wiki — `lorekeep quarantine review`)"
+            )
         if manifest.review:
             lines.append(f"- **Pending review**: {len(manifest.review)}")
         lines.append("")
@@ -883,6 +889,19 @@ def generate_wiki(
     nodes = store.all_nodes()
     edges = store.all_edges()
 
+    # Orphan-quarantined nodes (`lorekeep quarantine`, #266) are excluded from
+    # wiki output — parked for human review, not meant to pollute browsing.
+    # Re-checked here (degree == 0) rather than trusting the persisted flag
+    # alone, so a node that gained an edge after being quarantined reappears
+    # automatically. Safe because quarantine only ever targets zero-edge
+    # nodes, so dropping one can never orphan an edge a visible node needs.
+    quarantined_ids = {
+        n.id for n in nodes
+        if is_quarantined(n) and not store.out_edges(n.id) and not store.in_edges(n.id)
+    }
+    visible_nodes = [n for n in nodes if n.id not in quarantined_ids]
+    wiki_store = store if not quarantined_ids else GraphStore(visible_nodes, edges)
+
     existing_log = ""
     if (wiki_dir / "log.md").exists():
         existing_log = (wiki_dir / "log.md").read_text(encoding="utf-8")
@@ -902,25 +921,28 @@ def generate_wiki(
             )
         slug_map[slug] = node.id
 
-    for node in sorted(nodes, key=lambda n: (n.type, n.id)):
-        page = _entity_page(node, store, schema)
+    for node in sorted(visible_nodes, key=lambda n: (n.type, n.id)):
+        page = _entity_page(node, wiki_store, schema)
         slug = _slug(node.id)
         # A portable flat root keeps filename stems and wikilinks identical in
         # Obsidian and Tolaria; both apps can index this layout directly.
         entity_path = build_dir / f"{slug}.md"
         _atomic_write(entity_path, page)
 
-    _atomic_write(build_dir / "index.md", _index_page(store, manifest, schema))
-    _atomic_write(build_dir / "catalog.md", _catalog_page(store, schema))
+    _atomic_write(build_dir / "index.md", _index_page(wiki_store, manifest, schema))
+    _atomic_write(build_dir / "catalog.md", _catalog_page(wiki_store, schema))
     _atomic_write(
-        build_dir / "overview.md", _overview_page(store, manifest, schema),
+        build_dir / "overview.md",
+        _overview_page(wiki_store, manifest, schema, quarantined_count=len(quarantined_ids)),
     )
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     run_id = manifest.run_id if manifest else "unknown"
     entry = (
         f"## [{now}] wiki | run_id={run_id}, "
-        f"{len(nodes)} nodes, {len(edges)} edges\n"
+        f"{len(nodes)} nodes, {len(edges)} edges"
+        + (f", {len(quarantined_ids)} quarantined" if quarantined_ids else "")
+        + "\n"
     )
     if not existing_log:
         existing_log = "# Lorekeep Wiki \u2014 Log\n\n"
@@ -931,6 +953,7 @@ def generate_wiki(
     return {
         "nodes": len(nodes),
         "edges": len(edges),
-        # One page per node plus the four generated vault pages.
-        "pages": len(nodes) + 4,
+        # One page per visible node (quarantined nodes get none) plus the
+        # four generated vault pages.
+        "pages": len(visible_nodes) + 4,
     }

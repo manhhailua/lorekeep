@@ -42,6 +42,27 @@ _FATAL_PROVIDER_ERRORS = frozenset({
 })
 
 
+def _apply_prev_quarantine(
+    nodes: list[Node], prev_quarantine: dict[str, dict[str, str]] | None,
+) -> list[Node]:
+    """Reapply orphan-quarantine flags carried forward from a previous compile.
+
+    ``compile_graph`` rebuilds every node fresh from ``raw/`` via the LLM, so a
+    node parked by `lorekeep quarantine` has no memory of that decision unless
+    it is stamped back on here — the same problem ``prev_aliases`` solves for
+    ``props.merged_ids`` (see ``resolve.py``).
+    """
+    if not prev_quarantine:
+        return nodes
+    out = []
+    for n in nodes:
+        flags = prev_quarantine.get(n.id)
+        if flags and "quarantined_at" not in n.props:
+            n = n.model_copy(update={"props": {**n.props, **flags}})
+        out.append(n)
+    return out
+
+
 def _is_fatal_provider_error(exc: Exception) -> bool:
     """True if *exc* is a systemic provider error that will recur on every chunk."""
     exc_name = type(exc).__name__
@@ -109,6 +130,7 @@ def compile_graph(
     personal_ns: str = "me",
     language: str = "en",
     prev_aliases: dict[str, str] | None = None,
+    prev_quarantine: dict[str, dict[str, str]] | None = None,
     max_workers: int = 4,
     flush_interval: int = 10,
 ) -> Manifest:
@@ -153,6 +175,7 @@ def compile_graph(
             name_aliases={k: list(v) for k, v in all_aliases.items()},
             aliases_map=prev_aliases, schema=schema,
         )
+        partial.nodes = _apply_prev_quarantine(partial.nodes, prev_quarantine)
         provisional = Manifest(
             schema_version=schema.version, chunk_count=total,
             node_count=len(partial.nodes), edge_count=len(partial.edges),
@@ -241,6 +264,7 @@ def compile_graph(
         all_nodes, all_edges, name_aliases=all_aliases,
         aliases_map=prev_aliases, schema=schema,
     )
+    resolved.nodes = _apply_prev_quarantine(resolved.nodes, prev_quarantine)
 
     content_quality = measure_content_quality(resolved.nodes, resolved.edges, schema)
 

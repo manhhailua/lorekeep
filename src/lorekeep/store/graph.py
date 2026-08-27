@@ -19,6 +19,16 @@ def parse_date(value: str | None) -> date | None:
     return date.fromisoformat(value)
 
 
+def is_quarantined(node: Node) -> bool:
+    """True if a node was parked for orphan review (``lorekeep quarantine``, #266).
+
+    Quarantine is a props flag (``quarantined_at``/``quarantined_reason``), not a
+    model field — it survives recompiles the same way ``merged_ids`` does, by
+    being read back from the previous ``facts.jsonl`` and reapplied in resolve.
+    """
+    return bool(node.props.get("quarantined_at"))
+
+
 class GraphStore:
     def __init__(self, nodes: list[Node], edges: list[Edge]) -> None:
         self._G = nx.MultiDiGraph()

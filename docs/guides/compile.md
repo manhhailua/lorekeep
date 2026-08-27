@@ -238,6 +238,11 @@ staleness, endpoint issues, and coverage gaps. `agent lint --auto-fix` applies
 the currently supported deterministic self-heal operations and regenerates the
 wiki when facts change.
 
+Orphans that keep resurfacing every compile can be parked with
+`lorekeep quarantine detect --apply`, then triaged later with
+`lorekeep quarantine review` — see
+[Agent: Quarantine](../architecture/agent.md#quarantine-266).
+
 ## Related
 
 - [Pipeline architecture](../architecture/pipeline.md)

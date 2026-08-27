@@ -34,6 +34,9 @@ Global options: `--verbose / -v`<br>`--quiet / -q`<br>`--install-completion`<br>
 | `lorekeep agent service install` | Install daemon as a persistent OS service (survives restart). | — |
 | `lorekeep agent service uninstall` | Remove the persistent daemon service. | — |
 | `lorekeep agent service status` | Check if the persistent daemon service is installed and running. | — |
+| `lorekeep quarantine` | Park orphaned (zero-edge) nodes for human review instead of losing or re-litigating them on every compile (#266). | — |
+| `lorekeep quarantine detect` | List orphaned (zero-edge) nodes; with --apply, park them for review. | `--apply` |
+| `lorekeep quarantine review` | Walk each quarantined node and decide: restore, keep, or skip for now. | — |
 | `lorekeep mcp` | Coding-agent integration. | — |
 | `lorekeep mcp add` | Write the agent's MCP config + print an agent-memory snippet. | `--agent`<br>`--scope`<br>`--read-ns` |
 | `lorekeep config` | View and edit lorekeep config. | — |

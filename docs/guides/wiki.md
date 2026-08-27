@@ -59,6 +59,10 @@ wiki/
 └── …
 ```
 
+Nodes parked with `lorekeep quarantine` get no page and are left out of
+`catalog.md`/`index.md` — they still exist in `facts.jsonl` with full
+provenance; see [Agent: Quarantine](../architecture/agent.md#quarantine-266).
+
 Each entity page has YAML frontmatter that Obsidian/Dataview/Tolaria can query.
 Out-edges are emitted as **relationship fields** (any frontmatter field holding
 `[[wikilinks]]` — Tolaria treats these as relationships; Obsidian/Dataview as
