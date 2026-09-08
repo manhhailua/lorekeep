@@ -221,6 +221,15 @@ class TestAgentStatus:
         dash = agent_status(store)
         assert dash.lint_issues == 1
 
+    def test_quarantined_orphans_counted(self):
+        n1 = _node("svc:a", props={"name": "a", "quarantined_at": "2026-01-01"})
+        n2 = _node("svc:b")
+        e = _edge("e1", "svc:a", "svc:b")
+        dash = agent_status(_store([n1, n2], [e]))
+        assert dash.quarantined_orphans == 1
+        assert dash.quarantined_ids == ["svc:a"]
+        assert dash.lint_issues == 0
+
     def test_pending_journals_counted(self, tmp_path: Path):
         pending = tmp_path / "pending"
         ns_dir = pending / "backend"

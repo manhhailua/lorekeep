@@ -235,8 +235,11 @@ lorekeep agent lint
 `doctor` is the structural/install gate: graph, schema, MCP response, and optional
 provider ping. `agent lint` is graph-health analysis: contradictions, orphans,
 staleness, endpoint issues, and coverage gaps. `agent lint --auto-fix` applies
-the currently supported deterministic self-heal operations and regenerates the
-wiki when facts change.
+the currently supported deterministic self-heal operations (including parking
+degree-0 orphans) and regenerates the wiki when facts change.
+`lorekeep agent status` shows how many orphans are parked. Restore a false
+orphan with `lorekeep quarantine review` — see
+[Agent: Quarantine](../architecture/agent.md#quarantine-266).
 
 ## Related
 

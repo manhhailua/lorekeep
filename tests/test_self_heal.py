@@ -156,13 +156,15 @@ class TestEdgeDedup:
 # ── Flagging (non-destructive) ─────────────────────────────────────────────
 
 class TestFlagging:
-    def test_orphan_node_flagged_not_removed(self):
+    def test_orphan_node_quarantined_not_removed(self):
         n1 = make_node("svc:a")  # no edges
         s = store([n1], [])
         healed, report = self_heal(s)
-        assert len(healed.all_nodes()) == 1  # still there!
-        orphan_flags = [f for f in report.flagged if f["type"] == "orphan"]
-        assert len(orphan_flags) == 1
+        assert len(healed.all_nodes()) == 1  # still there
+        assert report.nodes_quarantined == ["svc:a"]
+        from lorekeep.store.graph import is_quarantined
+        assert is_quarantined(healed.get_node("svc:a"))
+        assert [f for f in report.flagged if f["type"] == "orphan"] == []
 
     def test_connected_node_not_flagged_orphan(self):
         n1 = make_node("svc:a")
@@ -277,6 +279,18 @@ class TestHealReport:
         report = HealReport(
             edges_removed=["e1", "e2"],
             edges_deduped=["e3"],
+        )
+        assert report.total_fixes == 3
+
+    def test_changes_made_true_when_nodes_quarantined(self):
+        report = HealReport(nodes_quarantined=["svc:a"])
+        assert report.changes_made
+        assert report.total_fixes == 1
+
+    def test_total_fixes_includes_quarantine(self):
+        report = HealReport(
+            edges_removed=["e1"],
+            nodes_quarantined=["svc:a", "svc:b"],
         )
         assert report.total_fixes == 3
 

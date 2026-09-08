@@ -29,8 +29,9 @@ uv run lorekeep <command>                    # run the CLI in dev mode
 | `wiki` | Regenerate `wiki/` from `facts.jsonl` (Obsidian-compatible markdown) |
 | `serve [--transport stdio\|http]` | Run the MCP server (8 tools + passive resources) |
 | `agent watch` | Start the daemon (drain lifecycle events, watch memory/raw/pending, compile/resolve) |
-| `agent heal` | Run self-heal standalone (remove dangling edges, dedupe, flag issues) |
+| `agent heal` | Run self-heal standalone (remove dangling edges, dedupe, park degree-0 orphans) |
 | `agent service install/uninstall/status` | Install/uninstall/status the daemon as an OS service (launchd/systemd) |
+| `quarantine review` | Per agent-parked orphan: `[r]estore` / `[k]eep` / `[s]kip` |
 | `schema upgrade` | Upgrade stock schema to latest version (backs up previous, `--dry-run`/`--force` for custom schemas) |
 | `mcp add --agent claude\|cursor\|codex\|opencode\|grok\|qoder\|copilot\|cmd [--scope user\|project] [--read-ns NS]` | Write agent MCP config (default scope from `agents.wire_scope`) |
 | `config show` | Print config.yaml |

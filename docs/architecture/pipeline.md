@@ -94,6 +94,11 @@ graph dedup so intermediate graphs have no duplicate entities. The final resolve
 `cli.py`) and passes them as `prev_aliases` to `resolve()`, so manual and
 LLM-detected merges are not lost when rebuilding from `raw/`.
 
+**Orphan-quarantine decisions persist the same way** — `_load_prev_quarantine()`
++ `_apply_prev_quarantine()` carry `props.quarantined_at`/`quarantined_reason`
+forward across a full recompile. See
+[Agent: Quarantine](agent.md#quarantine-266).
+
 There is no pending retry queue for dangling extracted edges. Correct the source
 or add the missing node and recompile.
 

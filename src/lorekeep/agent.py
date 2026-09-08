@@ -18,8 +18,10 @@ from lorekeep.compile.extract import (
     parse_response,
 )
 from lorekeep.compile.providers import LLMProvider
-from lorekeep.models import DocChunk, Schema
-from lorekeep.store.graph import GraphStore
+from lorekeep.models import DocChunk, Schema, now_iso
+from lorekeep.store.graph import GraphStore, is_quarantined
+
+ORPHAN_QUARANTINE_REASON = "orphan (no edges)"
 
 
 @dataclass
@@ -45,10 +47,16 @@ class LintReport:
 def lint(store: GraphStore) -> LintReport:
     report = LintReport()
 
-    # Orphans: nodes with zero inbound or outbound edges
-    for nid in store.node_ids():
-        if not store.out_edges(nid) and not store.in_edges(nid):
-            report.orphans.append(nid)
+    # Orphans: nodes with zero inbound or outbound edges. Already-quarantined
+    # nodes are excluded — self-heal parked them for review, so they should
+    # stop resurfacing as lint noise.
+    # Iterate all_nodes() rather than node_ids(): the latter includes NetworkX
+    # phantom endpoints from dangling edges, and get_node() KeyErrors on those.
+    for n in store.all_nodes():
+        if is_quarantined(n):
+            continue
+        if not store.out_edges(n.id) and not store.in_edges(n.id):
+            report.orphans.append(n.id)
 
     # Missing endpoints: edges referencing non-existent nodes
     for e in store.all_edges():
@@ -110,15 +118,17 @@ class HealReport:
     """
     edges_removed: list[str] = field(default_factory=list)
     edges_deduped: list[str] = field(default_factory=list)
+    nodes_quarantined: list[str] = field(default_factory=list)
     flagged: list[dict] = field(default_factory=list)
 
     @property
     def changes_made(self) -> bool:
-        return bool(self.edges_removed or self.edges_deduped)
+        return bool(self.edges_removed or self.edges_deduped or self.nodes_quarantined)
 
     @property
     def total_fixes(self) -> int:
-        return len(self.edges_removed) + len(self.edges_deduped)
+        return (len(self.edges_removed) + len(self.edges_deduped)
+                + len(self.nodes_quarantined))
 
 
 def self_heal(
@@ -133,10 +143,10 @@ def self_heal(
     Safe auto-fixes:
       - Dangling edges (endpoint node missing) → removed
       - Exact-duplicate edges (same type, from, to, validity) → deduplicated
+      - Orphan nodes (zero edges) → parked via ``props.quarantined_at``
 
     Flagged (NOT auto-fixed):
       - Circular dependencies (A→B→A)
-      - Orphan nodes (zero edges — might be newly imported)
     """
     report = HealReport()
 
@@ -183,21 +193,25 @@ def self_heal(
             visited.add(current)
             stack.extend(adjacency.get(current, set()))
 
-    # ── 4. Flag orphan nodes (informational — not auto-removed) ───────────
+    # ── 4. Park orphan nodes (degree-0 — not deleted) ────────────────────
     nodes_with_edges: set[str] = set()
     for e in clean_edges:
         nodes_with_edges.add(e.from_)
         nodes_with_edges.add(e.to)
+    today = now_iso()[:10]
+    healed_nodes = []
     for n in real_nodes:
-        if n.id not in nodes_with_edges:
-            report.flagged.append({
-                "type": "orphan",
-                "node": n.id,
-                "description": f"Node {n.id} has no edges — might be noise or newly imported",
-            })
+        if n.id not in nodes_with_edges and not is_quarantined(n):
+            n = n.model_copy(update={"props": {
+                **n.props,
+                "quarantined_at": today,
+                "quarantined_reason": ORPHAN_QUARANTINE_REASON,
+            }})
+            report.nodes_quarantined.append(n.id)
+        healed_nodes.append(n)
 
     # Build new store with cleaned data (no phantom nodes)
-    healed = GraphStore(real_nodes, clean_edges)
+    healed = GraphStore(healed_nodes, clean_edges)
     return healed, report
 
 
@@ -239,6 +253,8 @@ class StatusDashboard:
     namespaces: list[str] = field(default_factory=list)
     lint_issues: int = 0
     pending_journals: int = 0
+    quarantined_orphans: int = 0
+    quarantined_ids: list[str] = field(default_factory=list)
 
 
 def agent_status(
@@ -257,6 +273,10 @@ def agent_status(
 
     lr = lint(store)
     dash.lint_issues = lr.issue_count
+
+    parked = sorted(n.id for n in store.all_nodes() if is_quarantined(n))
+    dash.quarantined_orphans = len(parked)
+    dash.quarantined_ids = parked
 
     if pending_dir and pending_dir.exists():
         from lorekeep.journal import load_journals
